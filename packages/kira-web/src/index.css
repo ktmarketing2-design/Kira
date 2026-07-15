@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --color-kira-bg: #0a0a0f;
+  --color-kira-surface: #111118;
+  --color-kira-surface-2: #1a1a24;
+  --color-kira-border: #2a2a3a;
+  --color-kira-accent: #7c6fcd;
+  --color-kira-green: #22c55e;
+  --color-kira-red: #ef4444;
+  --color-kira-yellow: #eab308;
+  --color-kira-text: #e2e8f0;
+  --color-kira-text-muted: #64748b;
+  --color-kira-text-dim: #334155;
+
+  --font-display: "DM Mono", ui-monospace, monospace;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-kira-bg);
+  color: var(--color-kira-text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-kira-accent);
+  color: var(--color-kira-bg);
+}
+
+/* Subtle scan-line texture, used behind the landing hero. CSS-only, no images. */
+.kira-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(226, 232, 240, 0.03) 0px,
+    rgba(226, 232, 240, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.kira-grid-bg {
+  background-image:
+    linear-gradient(rgba(124, 111, 205, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 111, 205, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Thin, custom scrollbar to match the dense terminal aesthetic. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-kira-border) transparent;
+}

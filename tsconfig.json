@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist"
+  },
+  "include": [
+    "packages/queue/src/**/*",
+    "packages/ai/src/**/*",
+    "packages/sources/src/**/*",
+    "packages/prospect-discovery/src/**/*",
+    "apps/worker/src/**/*",
+    "apps/api/src/**/*"
+  ]
+}

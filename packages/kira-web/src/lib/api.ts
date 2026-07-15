@@ -22,7 +22,7 @@ async function authHeader(): Promise<Record<string, string>> {
 }
 
 export async function apiRequest<T>(
-  method: "GET" | "POST" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T> {

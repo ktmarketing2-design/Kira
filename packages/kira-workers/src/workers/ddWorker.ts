@@ -42,6 +42,7 @@ export interface DdCard {
     volume24hUsd: number | null;
     priceUsd: number | null;
     marketCapUsd: number | null;
+    pairAddress: string | null;
   };
   safety: {
     mintAuthorityRevoked: boolean;
@@ -342,9 +343,10 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
   ]);
 
   const deployerAddress = report?.deployerAddress ?? null;
-  const deployerRecentTxs = deployerAddress
-    ? await helius.getTransactionHistory(heliusConfig, deployerAddress, { limit: 20 })
-    : [];
+  // Speed optimization (Sprint 5 Part 5): this used to also fetch the deployer's last 20 txs
+  // sequentially here, a full extra Helius round-trip on the critical path of every cold DD, for
+  // a value that was never actually surfaced anywhere in the card (`void deployerRecentTxs`
+  // below used to mark exactly that). Cut entirely rather than left as dead weight.
   const deployerPriorRugs = report?.risks.some((r) => /rug/i.test(r.name)) ? 1 : 0;
 
   const symbol = market.symbol ?? report?.symbol ?? null;
@@ -420,6 +422,7 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
       volume24hUsd: market.volume24hUsd,
       priceUsd: market.priceUsd,
       marketCapUsd: market.marketCapUsd,
+      pairAddress: market.pairAddress ?? null,
     },
     safety: {
       mintAuthorityRevoked: report?.mintAuthorityRevoked ?? false,
@@ -439,7 +442,6 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
   };
 
   void holders; // fetched for future top-holder display, not yet surfaced in the card body
-  void deployerRecentTxs; // fetched for future display use, not yet surfaced in the card body
 
   await redis.set(cacheKey, JSON.stringify(card), "EX", CACHE_TTL_SECONDS);
 

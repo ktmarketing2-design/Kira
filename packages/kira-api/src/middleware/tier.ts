@@ -5,12 +5,30 @@ import type { KiraProfile, KiraTier } from "../types.js";
 
 export const TIER_LIMITS: Record<
   KiraTier,
-  { maxWallets: number; maxDdPerDay: number; minClusterThreshold: number }
+  {
+    maxWallets: number;
+    maxDdPerDay: number;
+    minClusterThreshold: number;
+    maxSignalFilters: number;
+    maxPnlWallets: number;
+  }
 > = {
-  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3 },
-  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2 },
-  elite: { maxWallets: Infinity, maxDdPerDay: Infinity, minClusterThreshold: 2 },
-  studio: { maxWallets: Infinity, maxDdPerDay: Infinity, minClusterThreshold: 2 },
+  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3, maxSignalFilters: 1, maxPnlWallets: 1 },
+  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2, maxSignalFilters: 5, maxPnlWallets: 5 },
+  elite: {
+    maxWallets: Infinity,
+    maxDdPerDay: Infinity,
+    minClusterThreshold: 2,
+    maxSignalFilters: Infinity,
+    maxPnlWallets: Infinity,
+  },
+  studio: {
+    maxWallets: Infinity,
+    maxDdPerDay: Infinity,
+    minClusterThreshold: 2,
+    maxSignalFilters: Infinity,
+    maxPnlWallets: Infinity,
+  },
 };
 
 /** Reads kira_profiles.tier and attaches req.userTier / req.profile. Runs after authMiddleware. */
@@ -86,6 +104,71 @@ export async function requireRosterCapacity(req: Request, res: Response, next: N
   if ((count ?? 0) >= limit) {
     res.status(403).json({
       error: `Roster limit reached (${limit} wallets on ${tier} tier)`,
+      upgradeUrl: "https://kira.ceronix.ai/upgrade",
+    });
+    return;
+  }
+
+  next();
+}
+
+/** Rejects creating a Signal Filter once the tier's active-filter cap is reached. */
+export async function requireSignalFilterCapacity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const tier = req.userTier ?? "scout";
+  const limit = TIER_LIMITS[tier].maxSignalFilters;
+
+  if (limit === Infinity) {
+    next();
+    return;
+  }
+
+  const { count, error } = await supabase
+    .from("kira_signal_filters")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", req.user!.id)
+    .eq("active", true);
+
+  if (error) {
+    console.error("[kira-api:tier] signal filter count failed:", error.message);
+    res.status(500).json({ error: "Internal server error checking filter limit" });
+    return;
+  }
+
+  if ((count ?? 0) >= limit) {
+    res.status(403).json({
+      error: `Active Signal Filter limit reached (${limit} on ${tier} tier)`,
+      upgradeUrl: "https://kira.ceronix.ai/upgrade",
+    });
+    return;
+  }
+
+  next();
+}
+
+/** Rejects adding a PnL-tracked wallet once the tier's cap is reached. */
+export async function requirePnlWalletCapacity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const tier = req.userTier ?? "scout";
+  const limit = TIER_LIMITS[tier].maxPnlWallets;
+
+  if (limit === Infinity) {
+    next();
+    return;
+  }
+
+  const { count, error } = await supabase
+    .from("kira_pnl_wallets")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", req.user!.id);
+
+  if (error) {
+    console.error("[kira-api:tier] pnl wallet count failed:", error.message);
+    res.status(500).json({ error: "Internal server error checking PnL wallet limit" });
+    return;
+  }
+
+  if ((count ?? 0) >= limit) {
+    res.status(403).json({
+      error: `PnL wallet limit reached (${limit} on ${tier} tier)`,
       upgradeUrl: "https://kira.ceronix.ai/upgrade",
     });
     return;

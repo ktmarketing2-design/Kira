@@ -2,7 +2,7 @@ import { Worker, type Job } from "bullmq";
 import { evaluateCluster, type ClusterMember } from "@ceronix/kira-shared";
 import { bullConnection, redis } from "../lib/redis.js";
 import { supabase } from "../lib/supabase.js";
-import { alertDispatchQueue } from "../lib/queues.js";
+import { alertDispatchQueue, ddQueue } from "../lib/queues.js";
 
 const MAX_WINDOW_MS = 6 * 60 * 60 * 1000; // 6h ceiling on cluster state
 const CLUSTERBUY_TTL_SECONDS = 6 * 60 * 60;
@@ -147,6 +147,15 @@ async function evaluateForUser(userId: string, tokenAddress: string, clusterMemb
     await redis.del(dedupeKey);
     return;
   }
+
+  // Pre-warm (Sprint 5 Part 5): kick off DD generation the moment the alert fires, in parallel
+  // with alert-dispatch rather than waiting for it to trigger the same job later. ddWorker checks
+  // its own Redis cache first, so this is a safe no-op if something else already warmed it, and
+  // alert-dispatch's own DD fetch (needed for rug/volume score in the message body) will find a
+  // warm cache instead of a cold 10+s generation. Not awaited, this must not delay alert-dispatch.
+  void ddQueue.add("dd", { tokenAddress }, { removeOnComplete: true, removeOnFail: true }).catch((err: unknown) => {
+    console.error("[kira-workers:cluster] dd pre-warm enqueue failed:", err instanceof Error ? err.message : err);
+  });
 
   await alertDispatchQueue.add("dispatch", { alertId: alert.id });
 }

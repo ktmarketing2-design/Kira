@@ -10,6 +10,7 @@ import { Bot, InlineKeyboard, GrammyError, HttpError, type Context } from "gramm
 import { Redis } from "ioredis";
 import { apiRequest, telegramStart, ApiError } from "./lib/api.js";
 import { escapeMarkdownV2, formatDdCard, truncateAddress } from "./lib/format.js";
+import { registerFilterCommands } from "./filterBuilder.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -70,7 +71,7 @@ bot.command("start", async (ctx) => {
 
     await ctx.reply(
       `Welcome back. Tier: ${result.tier ?? "scout"}. Wallets tracked: ${result.walletCount ?? 0}.\n\n` +
-        "Commands: /dd /vol /add /remove /roster /alerts /pnl /upgrade",
+        "Commands: /dd /vol /add /remove /roster /alerts /filter /filters /kol /pnl /upgrade",
     );
   } catch (err) {
     console.error("[kira-bot:start] failed:", err instanceof Error ? err.message : err);
@@ -271,8 +272,119 @@ bot.callbackQuery(/^vol:(.+)$/, async (ctx) => {
 });
 
 bot.command("pnl", async (ctx) => {
-  await ctx.reply("PnL digests are coming in the next update.");
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const arg = ctx.match?.trim();
+  if (arg?.startsWith("add ")) {
+    const address = arg.slice(4).trim();
+    if (!isLikelyAddress(address)) {
+      await ctx.reply("Usage: /pnl add <wallet address>");
+      return;
+    }
+    try {
+      await apiRequest(userId, "POST", "/pnl/wallets", { address });
+      await ctx.reply(`Added ${truncateAddress(address)} for PnL tracking. Digests are sent daily at 06:00 UTC.`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        await ctx.reply("PnL wallet limit reached for your tier. Upgrade with /upgrade.");
+        return;
+      }
+      await replyWithApiError(ctx, err, "Couldn't add that wallet.");
+    }
+    return;
+  }
+
+  try {
+    const walletsResult = await apiRequest<{ wallets: Array<{ address: string; label: string | null }> }>(
+      userId,
+      "GET",
+      "/pnl/wallets",
+    );
+    if (walletsResult.wallets.length === 0) {
+      await ctx.reply("No wallets tracked for PnL yet.\n\nAdd a wallet: /pnl add [address]");
+      return;
+    }
+
+    const snapshotsResult = await apiRequest<{
+      snapshots: Array<{
+        wallet_address: string;
+        date: string;
+        realized_pnl_usd: number | null;
+        total_trades: number | null;
+        winning_trades: number | null;
+        top_gainer_symbol: string | null;
+        top_gainer_pct: number | null;
+      }>;
+    }>(userId, "GET", "/pnl/snapshots");
+
+    if (snapshotsResult.snapshots.length === 0) {
+      await ctx.reply("No PnL data yet, check back after tomorrow's 06:00 UTC digest.");
+      return;
+    }
+
+    const latestByWallet = new Map<string, (typeof snapshotsResult.snapshots)[number]>();
+    for (const s of snapshotsResult.snapshots) {
+      const existing = latestByWallet.get(s.wallet_address);
+      if (!existing || s.date > existing.date) latestByWallet.set(s.wallet_address, s);
+    }
+
+    const lines = ["📊 Yesterday's PnL", ""];
+    for (const wallet of walletsResult.wallets) {
+      const snap = latestByWallet.get(wallet.address);
+      if (!snap) continue;
+      const label = wallet.label || truncateAddress(wallet.address);
+      const pnl = snap.realized_pnl_usd ?? 0;
+      lines.push(
+        `${label}: ${pnl >= 0 ? "+" : "-"}$${Math.abs(pnl).toFixed(0)} (${snap.total_trades ?? 0} trades, ${snap.winning_trades ?? 0} wins)`,
+      );
+      if (snap.top_gainer_symbol) {
+        lines.push(`Best: ${truncateAddress(snap.top_gainer_symbol)} +${(snap.top_gainer_pct ?? 0).toFixed(0)}%`);
+      }
+    }
+    lines.push("", "Add a wallet: /pnl add [address]");
+    await ctx.reply(lines.join("\n"));
+  } catch (err) {
+    await replyWithApiError(ctx, err, "Couldn't load your PnL data.");
+  }
 });
+
+bot.command("kol", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  try {
+    const result = await apiRequest<{
+      sources: Array<{ displayName: string | null; channelIdentifier: string; winRate7d: number | null; totalCalls: number }>;
+      warmingUp: boolean;
+    }>(userId, "GET", "/kol/sources");
+
+    if (result.warmingUp) {
+      await ctx.reply(
+        "KOL tracker is warming up.\nHistorical data is being collected from 10 channels.\nCheck back in 24-48 hours for accuracy scores.",
+      );
+      return;
+    }
+
+    const top5 = [...result.sources]
+      .filter((s) => s.winRate7d != null)
+      .sort((a, b) => (b.winRate7d ?? 0) - (a.winRate7d ?? 0))
+      .slice(0, 5);
+
+    if (top5.length === 0) {
+      await ctx.reply("No 7d win rate data yet, check back soon.");
+      return;
+    }
+
+    const lines = top5.map(
+      (s, i) => `${i + 1}. ${s.displayName ?? s.channelIdentifier} — ${Math.round((s.winRate7d ?? 0) * 100)}% (${s.totalCalls} calls)`,
+    );
+    await ctx.reply(`🏆 Top KOL channels (7d win rate)\n\n${lines.join("\n")}`);
+  } catch {
+    await ctx.reply("Couldn't load KOL stats right now.");
+  }
+});
+
+registerFilterCommands(bot, redis);
 
 bot.command("upgrade", async (ctx) => {
   await ctx.reply(

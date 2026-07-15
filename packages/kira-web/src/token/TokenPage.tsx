@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
 import DdCardView from "../shell/DdCardView.js";
+import ChartStudio from "./ChartStudio.js";
 import type { DdCard } from "../lib/types.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -88,11 +89,8 @@ export default function TokenPage() {
             </button>
           </div>
 
-          <div className="mt-6 border border-dashed border-kira-border rounded-md p-8 text-center">
-            <p className="text-kira-text-muted text-sm">Chart Studio — Coming Soon</p>
-            <p className="text-kira-text-dim text-xs mt-1">
-              Draw trendlines, see on-chain events overlaid on price action.
-            </p>
+          <div className="mt-6">
+            <ChartStudio tokenAddress={address} pairAddress={card.market.pairAddress} />
           </div>
         </>
       )}

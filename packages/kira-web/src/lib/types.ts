@@ -52,6 +52,31 @@ export interface Alert {
   read?: boolean;
 }
 
+export interface SignalFilter {
+  id: string;
+  user_id: string;
+  name: string;
+  active: boolean;
+  min_liquidity_usd: number | null;
+  min_fdv_usd: number | null;
+  max_fdv_usd: number | null;
+  min_volume_24h: number | null;
+  min_holders: number | null;
+  max_age_hours: number | null;
+  launchpads: string[] | null;
+  min_rug_score: number | null;
+  require_lp_locked: boolean | null;
+  require_mint_revoked: boolean | null;
+  min_volume_score: number | null;
+  min_social_mindshare: number | null;
+  min_social_sentiment: number | null;
+  min_galaxy_score: number | null;
+  require_roster_wallet: boolean;
+  min_roster_wallets: number;
+  matches24h: number;
+  created_at: string;
+}
+
 export interface VolumeSignal {
   name: string;
   value: number;
@@ -98,6 +123,7 @@ export interface DdCard {
     volume24hUsd: number | null;
     priceUsd: number | null;
     marketCapUsd: number | null;
+    pairAddress: string | null;
   };
   safety: {
     mintAuthorityRevoked: boolean;

@@ -1,11 +1,14 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, Bell, Search, Settings, ArrowUpCircle } from "lucide-react";
+import { LayoutDashboard, Users, Bell, Target, Megaphone, Search, LineChart, Settings, ArrowUpCircle } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/roster", label: "Roster", icon: Users },
   { to: "/alerts", label: "Alerts", icon: Bell },
+  { to: "/filters", label: "Signal Filters", icon: Target },
+  { to: "/kol", label: "KOL Tracker", icon: Megaphone },
   { to: "/token", label: "Token Search", icon: Search },
+  { to: "/pnl", label: "PnL", icon: LineChart },
 ];
 
 const bottomItems = [

@@ -15,6 +15,21 @@ const BASE_URL = "https://mainnet.helius-rpc.com/v0";
 // size (see kira-workers/volumeWorker.ts) cut the real request volume further.
 const limiter = new RateLimiter(10, 1_000);
 
+// Tracks consecutive 429s across all Helius calls in this process, resets on any success.
+// Lets callers doing bulk work (e.g. volumeWorker sampling wallet ages) implement a circuit
+// breaker: stop hammering an already-rate-limited endpoint and proceed with partial data
+// instead of waiting out retries that are just going to 429 again (Sprint 5 Part 5).
+let consecutive429Count = 0;
+
+export function getConsecutive429Count(): number {
+  return consecutive429Count;
+}
+
+function recordHeliusResult(status: number): void {
+  if (status === 429) consecutive429Count++;
+  else consecutive429Count = 0;
+}
+
 export interface HeliusConfig {
   apiKey: string;
 }
@@ -54,6 +69,7 @@ export async function getTokenLargestAccounts(
         params: [mintAddress],
       }),
     });
+    recordHeliusResult(res.status);
     if (!res.ok) {
       throw new KiraClientError(SOURCE, `unexpected status ${res.status}`, { status: res.status });
     }
@@ -148,6 +164,7 @@ export async function getTransactionHistory(
         params: [address, { limit: options.limit ?? 100, before: options.before }],
       }),
     });
+    recordHeliusResult(sigRes.status);
     if (!sigRes.ok) {
       throw new KiraClientError(SOURCE, `unexpected status ${sigRes.status}`, { status: sigRes.status });
     }
@@ -168,6 +185,7 @@ export async function getTransactionHistory(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ transactions: batch }),
       });
+      recordHeliusResult(parseRes.status);
       if (!parseRes.ok) {
         throw new KiraClientError(SOURCE, `unexpected status ${parseRes.status}`, { status: parseRes.status });
       }

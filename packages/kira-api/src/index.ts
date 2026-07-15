@@ -15,10 +15,14 @@ import { tierMiddleware } from "./middleware/tier.js";
 import webhooksRouter from "./routes/webhooks.js";
 import telegramRouter from "./routes/telegram.js";
 import authRouter from "./routes/auth.js";
+import chartShareRouter from "./routes/chartShare.js";
 import meRouter from "./routes/me.js";
 import rosterRouter from "./routes/roster.js";
 import tokenRouter from "./routes/token.js";
 import alertsRouter from "./routes/alerts.js";
+import signalFiltersRouter from "./routes/signalFilters.js";
+import kolRouter from "./routes/kol.js";
+import pnlRouter from "./routes/pnl.js";
 
 const app = express();
 const PORT = Number(process.env.KIRA_API_PORT || 4020);
@@ -60,6 +64,9 @@ app.use("/webhooks", webhooksRouter);
 // header instead (see routes/telegram.ts).
 app.use("/telegram", telegramRouter);
 
+// Public, unauthenticated: chart drawing share links.
+app.use("/chart-drawings", chartShareRouter);
+
 // Everything below requires a Supabase JWT and a resolved tier.
 app.use(authMiddleware);
 app.use(tierMiddleware);
@@ -69,6 +76,9 @@ app.use("/me", meRouter);
 app.use("/roster", rosterRouter);
 app.use("/token", tokenRouter);
 app.use("/alerts", alertsRouter);
+app.use("/signal-filters", signalFiltersRouter);
+app.use("/kol", kolRouter);
+app.use("/pnl", pnlRouter);
 
 app.listen(PORT, () => {
   console.log(`[kira-api] listening on port ${PORT}`);

@@ -26,7 +26,7 @@ values, never put a service-role key or anything secret in a `VITE_*` var):
 ```
 VITE_SUPABASE_URL=https://ccxfetpzllxkoosvzdzd.supabase.co
 VITE_SUPABASE_ANON_KEY=
-VITE_API_URL=https://api.kira.ceronix.ai   # or http://localhost:4020 for local dev
+VITE_API_URL=https://kira-api.ceronix.ai   # or http://localhost:4020 for local dev
 ```
 
 `ccxfetpzllxkoosvzdzd` is the confirmed Kira Supabase project ref. The anon key is provisioned

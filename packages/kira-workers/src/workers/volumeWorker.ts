@@ -16,6 +16,7 @@ const MAX_SWAPS = 200;
 const WINDOW_MS = 60 * 60 * 1000; // 1h
 const MAX_SAMPLED_WALLETS = 10; // was 30, then 15, cut further for cold-DD latency (each wallet costs 2 Helius calls)
 const WALLET_AGE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days, an address's first-tx date never changes
+const CIRCUIT_BREAKER_429_THRESHOLD = 3; // Sprint 5 Part 5: stop sampling once Helius is clearly rate-limited
 
 const heliusConfig: HeliusConfig = { apiKey: process.env.HELIUS_API_KEY ?? "" };
 
@@ -72,6 +73,14 @@ async function estimateWalletAgeDays(wallet: string): Promise<number> {
   const cacheKey = `walletage:${wallet}`;
   const cached = await redis.get(cacheKey);
   if (cached) return Number(cached);
+
+  // Circuit breaker: 3+ consecutive 429s means Helius is rate-limited right now, don't spend
+  // more of the request budget finding that out again for every remaining sampled wallet. Treat
+  // as "unknown / not new" (the same sentinel as "no history found") rather than falsely
+  // flagging the new-wallet-ratio signal off of lookups that never actually completed.
+  if (helius.getConsecutive429Count() >= CIRCUIT_BREAKER_429_THRESHOLD) {
+    return 9999;
+  }
 
   const history = await helius.getTransactionHistory(heliusConfig, wallet, { limit: 100 });
   const ageDays =

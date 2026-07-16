@@ -14,6 +14,8 @@ import { startHeliusSyncWorker } from "./workers/heliusSyncWorker.js";
 import { startSignalScanWorker } from "./workers/signalScanWorker.js";
 import { startPnlDigestWorker } from "./workers/pnlDigestWorker.js";
 import { startWalletPerformanceWorker } from "./workers/walletPerformanceWorker.js";
+import { startKolPriceCheckWorker } from "./workers/kolPriceCheckWorker.js";
+import { startKolIngest } from "./workers/kolIngestWorker.js";
 import { pnlDigestQueue, walletPerformanceQueue } from "./lib/queues.js";
 
 const workers = [
@@ -25,6 +27,7 @@ const workers = [
   startSignalScanWorker(),
   startPnlDigestWorker(),
   startWalletPerformanceWorker(),
+  startKolPriceCheckWorker(),
 ];
 
 for (const worker of workers) {
@@ -50,6 +53,12 @@ await walletPerformanceQueue.add(
 console.log(`[kira-workers] ${workers.length} workers started: ${workers.map((w) => w.name).join(", ")}`);
 console.log("[kira-workers] kira-pnl-digest repeatable job registered for 06:00 UTC daily");
 console.log("[kira-workers] kira-wallet-performance repeatable job registered for 02:00 UTC daily");
+
+// Not a BullMQ worker, a persistent GramJS client listening for new Telegram messages. Runs
+// independently of the job-queue workers above; failures here (bad session, network issue) are
+// logged and swallowed inside startKolIngest itself rather than crashing the whole process, KOL
+// ingestion being unavailable should not take down every other worker.
+void startKolIngest();
 
 async function shutdown(): Promise<void> {
   console.log("[kira-workers] shutting down");

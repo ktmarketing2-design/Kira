@@ -11,6 +11,7 @@ export const heliusSyncQueue = new Queue("kira-helius-sync", { connection: bullC
 export const signalScanQueue = new Queue("kira-signal-scan", { connection: bullConnection });
 export const pnlDigestQueue = new Queue("kira-pnl-digest", { connection: bullConnection });
 export const walletPerformanceQueue = new Queue("kira-wallet-performance", { connection: bullConnection });
+export const kolPriceCheckQueue = new Queue("kira-kol-price-check", { connection: bullConnection });
 
 export const ddQueueEvents = new QueueEvents("kira-dd", { connection: bullConnection });
 export const volumeQueueEvents = new QueueEvents("kira-volume", { connection: bullConnection });

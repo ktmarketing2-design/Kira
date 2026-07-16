@@ -68,8 +68,12 @@ export default function FiltersPage() {
   }
 
   async function handleDelete(filter: SignalFilter) {
-    await apiRequest("DELETE", `/signal-filters/${filter.id}`);
-    setFilters((prev) => prev.filter((f) => f.id !== filter.id));
+    try {
+      await apiRequest("DELETE", `/signal-filters/${filter.id}`);
+      setFilters((prev) => prev.filter((f) => f.id !== filter.id));
+    } catch {
+      setError("Couldn't delete that filter.");
+    }
   }
 
   const tier = me?.tier ?? "scout";

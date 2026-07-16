@@ -241,9 +241,14 @@ export async function startKolIngest(): Promise<void> {
 
   console.log(`[kira-workers:kol-ingest] Connected to Telegram, listening on ${entityBySourceId.size} channels`);
 
+  // Staggered by 0-30s per source so all 10 backfills do not burst Jupiter'''s price API at
+  // once (observed live: concurrent unstaggered backfills produced repeated Jupiter 429s).
   for (const source of sources) {
     const entity = entityBySourceId.get(source.id);
     if (!entity) continue;
-    void runBackfillOnce(client, source, entity);
+    const staggerMs = Math.floor(Math.random() * 30_000);
+    setTimeout(() => {
+      void runBackfillOnce(client, source, entity);
+    }, staggerMs);
   }
 }

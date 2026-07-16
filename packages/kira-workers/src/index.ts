@@ -18,7 +18,8 @@ import { startKolPriceCheckWorker } from "./workers/kolPriceCheckWorker.js";
 import { startKolIngest } from "./workers/kolIngestWorker.js";
 import { startSmartMoneyScanWorker } from "./workers/smartMoneyScanWorker.js";
 import { startSmartMoneyDigestWorker } from "./workers/smartMoneyDigestWorker.js";
-import { pnlDigestQueue, walletPerformanceQueue, smartMoneyDigestQueue } from "./lib/queues.js";
+import { startSmartWalletRefreshWorker } from "./workers/smartWalletRefreshWorker.js";
+import { pnlDigestQueue, walletPerformanceQueue, smartMoneyDigestQueue, smartWalletRefreshQueue } from "./lib/queues.js";
 
 const workers = [
   startDdWorker(),
@@ -32,6 +33,7 @@ const workers = [
   startKolPriceCheckWorker(),
   startSmartMoneyScanWorker(),
   startSmartMoneyDigestWorker(),
+  startSmartWalletRefreshWorker(),
 ];
 
 for (const worker of workers) {
@@ -60,10 +62,21 @@ await smartMoneyDigestQueue.add(
   { repeat: { pattern: "0 7 * * *", tz: "UTC" }, jobId: "daily-smart-money-digest" },
 );
 
+await smartWalletRefreshQueue.add(
+  "refresh",
+  {},
+  { repeat: { pattern: "0 3 * * *", tz: "UTC" }, jobId: "nightly-smart-wallet-refresh" },
+);
+// Also run once immediately on startup (not just the 03:00 UTC cron) so the table populates
+// right away rather than waiting for the first scheduled run, distinct jobId so it does not
+// collide with or reset the repeatable schedule above.
+await smartWalletRefreshQueue.add("refresh", {}, { jobId: "startup-smart-wallet-refresh" });
+
 console.log(`[kira-workers] ${workers.length} workers started: ${workers.map((w) => w.name).join(", ")}`);
 console.log("[kira-workers] kira-pnl-digest repeatable job registered for 06:00 UTC daily");
 console.log("[kira-workers] kira-wallet-performance repeatable job registered for 02:00 UTC daily");
 console.log("[kira-workers] kira-smart-money-digest repeatable job registered for 07:00 UTC daily");
+console.log("[kira-workers] kira-smart-wallet-refresh repeatable job registered for 03:00 UTC daily (plus one immediate run on startup)");
 
 // Not a BullMQ worker, a persistent GramJS client listening for new Telegram messages. Runs
 // independently of the job-queue workers above; failures here (bad session, network issue) are

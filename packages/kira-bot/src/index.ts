@@ -11,6 +11,7 @@ import { Redis } from "ioredis";
 import { apiRequest, telegramStart, ApiError } from "./lib/api.js";
 import { escapeMarkdownV2, formatDdCard, truncateAddress } from "./lib/format.js";
 import { registerFilterCommands } from "./filterBuilder.js";
+import { getBuyBots } from "./config/buyBots.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -98,7 +99,7 @@ bot.command("dd", async (ctx) => {
 
     const keyboard = new InlineKeyboard()
       .text("🔄 Refresh", `dd:${arg}`)
-      .text("📊 Volume Score", `vol:${arg}`);
+      .text("💰 Buy Token", `buy:${arg}`);
 
     await ctx.reply(formatDdCard(card), { parse_mode: "MarkdownV2", reply_markup: keyboard });
   } catch (err) {
@@ -247,7 +248,7 @@ bot.callbackQuery(/^dd:(.+)$/, async (ctx) => {
     const card = await apiRequest<Parameters<typeof formatDdCard>[0]>(userId, "GET", `/token/${address}/dd`);
     const keyboard = new InlineKeyboard()
       .text("🔄 Refresh", `dd:${address}`)
-      .text("📊 Volume Score", `vol:${address}`);
+      .text("💰 Buy Token", `buy:${address}`);
     await ctx.editMessageText(formatDdCard(card), { parse_mode: "MarkdownV2", reply_markup: keyboard });
     await ctx.answerCallbackQuery();
   } catch {
@@ -268,6 +269,33 @@ bot.callbackQuery(/^vol:(.+)$/, async (ctx) => {
     });
   } catch {
     await ctx.answerCallbackQuery({ text: "Couldn't fetch volume score." });
+  }
+});
+
+bot.callbackQuery(/^buy:(.+)$/, async (ctx) => {
+  const userId = ctx.from?.id;
+  const address = ctx.match[1];
+  if (!userId) return;
+
+  try {
+    const card = await apiRequest<{ symbol: string | null; graduated: boolean | null }>(
+      userId,
+      "GET",
+      `/token/${address}/dd`,
+    );
+    const symbol = card.symbol ?? "TOKEN";
+    const bots = getBuyBots(card.graduated === true);
+
+    const keyboard = new InlineKeyboard();
+    for (const buyBot of bots) {
+      const url = buyBot.urlTemplate.replace("{address}", address);
+      keyboard.url(buyBot.label, url).row();
+    }
+
+    await ctx.reply(`💰 Buy $${symbol}\n\nChoose your preferred trading bot:`, { reply_markup: keyboard });
+    await ctx.answerCallbackQuery();
+  } catch {
+    await ctx.answerCallbackQuery({ text: "Couldn't load buy options, try again." });
   }
 });
 
@@ -412,6 +440,29 @@ bot.catch((err) => {
     console.error("Unknown error:", e);
   }
 });
+
+await bot.api.setMyCommands([
+  { command: "start", description: "Welcome and account setup" },
+  { command: "dd", description: "Deep Dive a token: /dd [address]" },
+  { command: "vol", description: "Volume score: /vol [address]" },
+  { command: "add", description: "Add wallet to roster: /add [address]" },
+  { command: "remove", description: "Remove wallet: /remove [address]" },
+  { command: "roster", description: "View your tracked wallets" },
+  { command: "alerts", description: "Configure alert settings" },
+  { command: "filter", description: "Create a signal filter" },
+  { command: "filters", description: "View your signal filters" },
+  { command: "kol", description: "KOL tracker and personal sources" },
+  { command: "pnl", description: "Your PnL digest" },
+  { command: "upgrade", description: "View plans and upgrade" },
+]);
+
+await bot.api.setMyDescription(
+  "Kira by Ceronix Labs \u2014 On-chain intelligence for Solana traders. Wallet alerts, rug checks, volume authenticity, signal filters, KOL tracking, and smart money digest.",
+);
+
+await bot.api.setMyShortDescription(
+  "On-chain intel for Solana traders. Wallet alerts, rug checks & signal filters.",
+);
 
 bot.start({
   onStart: () => console.log("[kira-bot] long polling started"),

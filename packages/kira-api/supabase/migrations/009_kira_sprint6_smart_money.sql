@@ -28,17 +28,4 @@ create table if not exists kira_smart_money_events (
 create index if not exists kira_smart_money_events_token_time_idx on kira_smart_money_events (token_address, block_time desc);
 create index if not exists kira_smart_money_events_wallet_time_idx on kira_smart_money_events (wallet_address, block_time desc);
 
--- Starter seed list: only 2 rows, not the 20-30 the spec called for.
--- Every other 'known profitable Solana wallet' candidate found via web search this session
--- either had no address attached to a name (just a platform username on GMGN/Kolscan/Birdeye,
--- not a resolvable on-chain address), or came from a single unverified search snippet. Both
--- addresses below were independently confirmed via a live Helius getSignaturesForAddress call
--- (real, actively transacting accounts, not fabricated) before being added here. Fabricating
--- addresses to hit a round number would put wrong data in a feature literally named for trust
--- (smart money), so this seed is intentionally small and honest rather than padded.
--- Grow this list from a trusted source (a GMGN/Birdeye/Dune leaderboard export, or the
--- operator's own vetted list) rather than more ad-hoc web search.
-insert into kira_smart_wallets (address, label, category, is_verified) values
-  ('GV6UUmNxz2RpKxmNAPadYKb7uQpszwqQAu3qLJxVdC52', 'Ansem (@blknoiz06)', 'early_buyer', true),
-  ('suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK', 'Cupsey', 'dex_trader', true)
-on conflict (address) do nothing;
+-- Smart wallets populated dynamically by kira-smart-wallet-refresh worker (GMGN API).

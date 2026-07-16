@@ -70,7 +70,19 @@ await smartWalletRefreshQueue.add(
 // Also run once immediately on startup (not just the 03:00 UTC cron) so the table populates
 // right away rather than waiting for the first scheduled run, distinct jobId so it does not
 // collide with or reset the repeatable schedule above.
-await smartWalletRefreshQueue.add("refresh", {}, { jobId: "startup-smart-wallet-refresh" });
+await smartWalletRefreshQueue.add(
+  "refresh",
+  {},
+  {
+    // A fixed jobId with no removeOnComplete left the completed job sitting in Redis forever
+    // (verified live: BullMQ silently no-ops re-adding a job whose jobId already has a
+    // completed/failed record, so this never actually re-ran after the first restart).
+    // removeOnComplete/removeOnFail let every process restart genuinely trigger a fresh run.
+    jobId: "startup-smart-wallet-refresh",
+    removeOnComplete: true,
+    removeOnFail: true,
+  },
+);
 
 console.log(`[kira-workers] ${workers.length} workers started: ${workers.map((w) => w.name).join(", ")}`);
 console.log("[kira-workers] kira-pnl-digest repeatable job registered for 06:00 UTC daily");

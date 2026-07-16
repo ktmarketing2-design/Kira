@@ -51,6 +51,7 @@ export interface DdCard {
     sellVolume24hUsd: number | null;
   };
   topHolders: Array<{ address: string; pct: number | null; isDev: boolean }>;
+  smartMoney: { walletsEntered24h: number; netFlowUsd: number } | null;
   safety: {
     mintAuthorityRevoked: boolean;
     freezeAuthorityRevoked: boolean;
@@ -436,6 +437,27 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
     isDev: h.address === deployerAddress,
   }));
 
+  let smartMoney: DdCard["smartMoney"] = null;
+  {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: events, error: smartMoneyError } = await supabase
+      .from("kira_smart_money_events")
+      .select("wallet_address, side, usd_value")
+      .eq("token_address", tokenAddress)
+      .gte("block_time", since);
+
+    if (smartMoneyError) {
+      console.error("[kira-workers:dd] smart money lookup failed:", smartMoneyError.message);
+    } else if (events && events.length > 0) {
+      const uniqueWallets = new Set(events.map((e) => e.wallet_address));
+      const netFlowUsd = events.reduce(
+        (sum, e) => sum + (e.side === "buy" ? (e.usd_value ?? 0) : -(e.usd_value ?? 0)),
+        0,
+      );
+      smartMoney = { walletsEntered24h: uniqueWallets.size, netFlowUsd };
+    }
+  }
+
   const card: DdCard = {
     tokenAddress,
     symbol,
@@ -458,6 +480,7 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
       sellVolume24hUsd: sellVolume24hUsd,
     },
     topHolders: topHolders,
+    smartMoney,
     safety: {
       mintAuthorityRevoked: report?.mintAuthorityRevoked ?? false,
       freezeAuthorityRevoked: report?.freezeAuthorityRevoked ?? false,

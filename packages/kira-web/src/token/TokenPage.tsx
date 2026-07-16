@@ -7,16 +7,18 @@ import SignalsChart from "./SignalsChart.js";
 import TransactionsPanel from "./TransactionsPanel.js";
 import BuyersSellersBar from "./BuyersSellersBar.js";
 import HoldersPanel from "./HoldersPanel.js";
+import SmartMoneyPanel from "./SmartMoneyPanel.js";
 import type { DdCard } from "../lib/types.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-type Tab = "chart" | "signals" | "transactions" | "holders";
+type Tab = "chart" | "signals" | "transactions" | "holders" | "smartMoney";
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "chart", label: "📊 Chart" },
   { id: "signals", label: "🎯 Signals" },
   { id: "transactions", label: "📋 Transactions" },
   { id: "holders", label: "👥 Holders" },
+  { id: "smartMoney", label: "🧠 Smart Money" },
 ];
 
 export default function TokenPage() {
@@ -134,6 +136,7 @@ export default function TokenPage() {
           {tab === "holders" && (
             <HoldersPanel holders={card.topHolders} top10HolderPct={card.safety.top10HolderPct} />
           )}
+          {tab === "smartMoney" && <SmartMoneyPanel tokenAddress={address} />}
         </>
       )}
     </div>

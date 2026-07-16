@@ -130,6 +130,7 @@ export interface DdCard {
     sellVolume24hUsd: number | null;
   };
   topHolders: Array<{ address: string; pct: number | null; isDev: boolean }>;
+  smartMoney: { walletsEntered24h: number; netFlowUsd: number } | null;
   safety: {
     mintAuthorityRevoked: boolean;
     freezeAuthorityRevoked: boolean;

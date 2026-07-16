@@ -21,14 +21,40 @@ async function resolveWebhookId(addresses: string[]): Promise<string | null> {
   return created?.webhookID ?? null;
 }
 
+/** Ensures every kira_smart_wallets row has a matching kira_watched_addresses row with
+ * is_house: true, so newly-added smart wallets get picked up by the next sync without a
+ * separate one-off script. Self-healing: safe to call on every sync, upsert is a no-op for
+ * addresses already registered. */
+async function ensureSmartWalletsWatched(): Promise<void> {
+  const { data: smartWallets, error } = await supabase.from("kira_smart_wallets").select("address");
+  if (error) {
+    console.error("[kira-workers:helius-sync] smart wallet load failed:", error.message);
+    return;
+  }
+  if (!smartWallets || smartWallets.length === 0) return;
+
+  const { error: upsertError } = await supabase
+    .from("kira_watched_addresses")
+    .upsert(
+      smartWallets.map((w) => ({ address: w.address, is_house: true })),
+      { onConflict: "address", ignoreDuplicates: false },
+    );
+
+  if (upsertError) {
+    console.error("[kira-workers:helius-sync] smart wallet watch upsert failed:", upsertError.message);
+  }
+}
+
 async function processHeliusSync(_job: Job): Promise<void> {
   const isFirstInWindow = await redis.set(DEBOUNCE_KEY, "1", "EX", DEBOUNCE_TTL_SECONDS, "NX");
   if (!isFirstInWindow) return; // another sync already ran within the debounce window
 
+  await ensureSmartWalletsWatched();
+
   const { data: watched, error } = await supabase
     .from("kira_watched_addresses")
     .select("address")
-    .gt("watcher_count", 0);
+    .or("watcher_count.gt.0,is_house.eq.true");
 
   if (error) {
     console.error("[kira-workers:helius-sync] watched address query failed:", error.message);

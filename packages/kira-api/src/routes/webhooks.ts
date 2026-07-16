@@ -3,7 +3,7 @@ import { z } from "zod";
 import { jupiter } from "@ceronix/kira-shared";
 import { supabase } from "../lib/supabase.js";
 import { redis } from "../lib/redis.js";
-import { clusterEvalQueue, signalScanQueue } from "../lib/queue.js";
+import { clusterEvalQueue, signalScanQueue, smartMoneyScanQueue } from "../lib/queue.js";
 
 // Native SOL and the two most common USD quote mints, never the "new token" side of a pool.
 const QUOTE_MINTS = new Set([
@@ -118,6 +118,20 @@ async function handleSwapTransaction(
     side,
     usdValue: usdValue ?? 0,
     timestamp: tx.timestamp * 1000,
+  });
+
+  // Runs alongside cluster-eval, not instead of it: cluster-eval is roster-wallet-specific
+  // (does the swap involve wallets a user tracks), this is house-list-specific (does the swap
+  // come from one of Kira's own curated smart-money addresses). Cheap to enqueue unconditionally
+  // for every swap and let the worker do the kira_smart_wallets lookup, rather than querying it
+  // here on the webhook's hot path.
+  await smartMoneyScanQueue.add("scan", {
+    walletAddress: wallet,
+    tokenAddress,
+    side,
+    usdValue: usdValue ?? 0,
+    blockTime,
+    signature: tx.signature,
   });
 
   return true;

@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { apiRequest, ApiError } from "../lib/api.js";
 import { useAppData } from "../shell/AppDataContext.js";
 import AlertCard from "./AlertCard.js";
+import SmartMoneyFeed from "./SmartMoneyFeed.js";
 import type { Alert, RosterWallet } from "../lib/types.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -132,6 +133,7 @@ export default function DashboardPage() {
             <p className="text-xs text-kira-text-dim mt-2">Scout tier: 10 Deep Dives/day.</p>
           )}
         </div>
+        <SmartMoneyFeed />
       </section>
     </div>
   );

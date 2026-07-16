@@ -4,11 +4,31 @@ import { redis } from "../lib/redis.js";
 import { supabase } from "../lib/supabase.js";
 import { ddQueue, ddQueueEvents, volumeQueue, volumeQueueEvents } from "../lib/queue.js";
 import { requireDdQuota } from "../middleware/tier.js";
+import { helius, jupiter, type HeliusConfig } from "@ceronix/kira-shared";
 
 const router = Router();
 
 const DD_JOB_TIMEOUT_MS = 15_000;
 const VOLUME_JOB_TIMEOUT_MS = 15_000;
+const TX_HISTORY_LOOKBACK = 60; // fetch more than 20 since not every parsed tx yields a transfer for this mint
+const TX_RESULT_LIMIT = 20;
+const heliusConfig: HeliusConfig = { apiKey: process.env.HELIUS_API_KEY ?? "" };
+
+function timeAgo(timestampMs: number): string {
+  const diffMs = Date.now() - timestampMs;
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function truncateAddress(address: string): string {
+  if (address.length <= 10) return address;
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
 
 router.get("/:address/dd", requireDdQuota, async (req, res) => {
   const { address } = req.params;
@@ -53,6 +73,73 @@ router.get("/:address/volume", async (req, res) => {
   } catch (err) {
     console.error("[kira-api:token] volume failed:", err instanceof Error ? err.message : err);
     res.status(504).json({ error: "Volume score generation timed out or failed" });
+  }
+});
+
+// Recent swaps for the trading-activity panel. Uses Helius parsed transaction history queried
+// directly on the token mint address (same proven approach as kira-workers/volumeWorker.ts's
+// deriveSwaps), not a pool address: kira_token_snapshots does not persist pairAddress anywhere
+// (checked — the DD card only holds it transiently in the Redis-cached JSON, ddWorker's insert
+// into kira_token_snapshots never writes a pair_address column, and no such column exists in any
+// migration), and Helius's getSignaturesForAddress works against any account including a mint,
+// so resolving a pool address first would be an unnecessary extra network call for no benefit.
+// This also means it works for pre-graduation bonding-curve tokens too, not just graduated ones.
+router.get("/:address/transactions", async (req, res) => {
+  const { address } = req.params;
+
+  try {
+    const priceUsd = await jupiter.getPrice(address);
+    const history = await helius.getTransactionHistory(heliusConfig, address, { limit: TX_HISTORY_LOOKBACK });
+
+    const transactions: Array<{
+      signature: string;
+      wallet: string;
+      walletFull: string;
+      side: "buy" | "sell";
+      usdValue: number;
+      tokenAmount: number;
+      timestamp: number;
+      timeAgo: string;
+    }> = [];
+
+    for (const tx of history) {
+      const timestampMs = tx.timestamp * 1000;
+      for (const transfer of tx.tokenTransfers ?? []) {
+        if (transfer.mint !== address || !transfer.tokenAmount) continue;
+
+        const side: "buy" | "sell" | null = transfer.toUserAccount
+          ? "buy"
+          : transfer.fromUserAccount
+            ? "sell"
+            : null;
+        const walletFull = side === "buy" ? transfer.toUserAccount : transfer.fromUserAccount;
+        if (!side || !walletFull) continue;
+
+        transactions.push({
+          signature: tx.signature,
+          wallet: truncateAddress(walletFull),
+          walletFull,
+          side,
+          usdValue: priceUsd != null ? priceUsd * transfer.tokenAmount : 0,
+          tokenAmount: transfer.tokenAmount,
+          timestamp: timestampMs,
+          timeAgo: timeAgo(timestampMs),
+        });
+      }
+    }
+
+    transactions.sort((a, b) => b.timestamp - a.timestamp);
+    const limited = transactions.slice(0, TX_RESULT_LIMIT);
+
+    if (limited.length === 0) {
+      res.json({ transactions: [], source: "unavailable" });
+      return;
+    }
+
+    res.json({ transactions: limited });
+  } catch (err) {
+    console.error("[kira-api:token] transactions failed:", err instanceof Error ? err.message : err);
+    res.json({ transactions: [], source: "unavailable" });
   }
 });
 

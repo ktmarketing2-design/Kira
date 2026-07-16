@@ -8,6 +8,7 @@ import TransactionsPanel from "./TransactionsPanel.js";
 import BuyersSellersBar from "./BuyersSellersBar.js";
 import HoldersPanel from "./HoldersPanel.js";
 import SmartMoneyPanel from "./SmartMoneyPanel.js";
+import BuyTokenModal from "./BuyTokenModal.js";
 import type { DdCard } from "../lib/types.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -21,10 +22,29 @@ const SUB_TABS: Array<{ id: SubTab; label: string }> = [
   { id: "smartMoney", label: "🧠 Smart Money" },
 ];
 
-function buyUrl(card: DdCard): string {
-  return card.graduated
-    ? `https://jup.ag/swap/SOL-${card.tokenAddress}`
-    : `https://pump.fun/coin/${card.tokenAddress}`;
+/**
+ * Rendering both the mobile and desktop layouts at once and toggling visibility with Tailwind's
+ * lg:hidden/hidden-lg:grid classes (CSS-only) mounted two separate SignalsChart trees
+ * simultaneously. lightweight-charts reads containerRef.current.clientWidth once at creation
+ * time via createChart(), and an element inside a display:none ancestor always reports
+ * clientWidth === 0 (fixed DOM/CSS box-model behavior, no layout box is generated) -- so
+ * whichever instance happened to be the hidden one rendered a zero-width, invisible chart. This
+ * also silently doubled every API call on the page (DD card panels, OHLCV, events...). Switching
+ * to a single JS-driven layout choice means only one component tree ever mounts.
+ */
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
+  return isDesktop;
 }
 
 function TokenChart({ address, card, chartMode, setChartMode }: {
@@ -105,18 +125,18 @@ function TokenSubTabs({ address, card, subTab, setSubTab }: {
 }
 
 function TokenSidebar({ card, address, onRefresh }: { card: DdCard; address: string; onRefresh: () => void }) {
+  const [buyModalOpen, setBuyModalOpen] = useState(false);
+
   return (
     <div className="space-y-3">
       <DdCardView card={card} />
       <div className="flex gap-3">
-        <a
-          href={buyUrl(card)}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          onClick={() => setBuyModalOpen(true)}
           className="flex-1 text-center bg-kira-accent text-kira-bg rounded px-3 py-2 text-sm font-medium hover:opacity-90"
         >
           💰 Buy Token
-        </a>
+        </button>
         <button
           onClick={onRefresh}
           className="text-sm bg-kira-surface-2 border border-kira-border text-kira-text rounded px-3 py-2 hover:border-kira-accent"
@@ -124,14 +144,18 @@ function TokenSidebar({ card, address, onRefresh }: { card: DdCard; address: str
           Refresh DD
         </button>
       </div>
-      {!card.graduated && (
-        <p className="text-xs text-kira-text-dim">
-          Pre-graduation token — Buy Token opens Pump.fun. Jupiter needs a live DEX pool.
-        </p>
-      )}
       <p className="text-xs text-kira-text-dim font-data truncate" title={address}>
         {address}
       </p>
+
+      {buyModalOpen && (
+        <BuyTokenModal
+          symbol={card.symbol ?? "TOKEN"}
+          tokenAddress={card.tokenAddress}
+          isGraduated={card.graduated === true}
+          onClose={() => setBuyModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -145,6 +169,12 @@ export default function TokenPage() {
   const [query, setQuery] = useState("");
   const [chartMode, setChartMode] = useState<ChartMode>("gecko");
   const [subTab, setSubTab] = useState<SubTab>("transactions");
+  // Must run unconditionally on every render, before the early return below. It was placed
+  // after that return originally, which is fine as long as this component only ever renders one
+  // branch, but React Router can reuse the same component instance across the /token and
+  // /token/:address routes on client-side navigation, so a later render could hit the early
+  // return after an earlier render didn't, silently violating the Rules of Hooks.
+  const isDesktop = useIsDesktop();
 
   function load(addr: string) {
     setLoading(true);
@@ -200,29 +230,27 @@ export default function TokenPage() {
     <div>
       {loading && <div className="text-kira-text-muted text-sm mb-4">Generating Deep Dive...</div>}
       {error && <div className="text-kira-red text-sm mb-4">{error}</div>}
-      {card && (
-        <>
-          {/* Mobile: single column, chart first, then sub-tabs, then DD card. */}
-          <div className="lg:hidden">
+      {card && (isDesktop ? (
+        // Desktop: two columns, left 65% chart + sub-tabs, right 35% scrollable sidebar.
+        <div className="grid grid-cols-[65fr_35fr] gap-6 items-start">
+          <div>
             <TokenChart address={address} card={card} chartMode={chartMode} setChartMode={setChartMode} />
             <TokenSubTabs address={address} card={card} subTab={subTab} setSubTab={setSubTab} />
-            <div className="mt-6">
-              <TokenSidebar card={card} address={address} onRefresh={() => load(address)} />
-            </div>
           </div>
-
-          {/* Desktop: two columns, left 65% chart + sub-tabs, right 35% scrollable sidebar. */}
-          <div className="hidden lg:grid lg:grid-cols-[65fr_35fr] lg:gap-6 lg:items-start">
-            <div>
-              <TokenChart address={address} card={card} chartMode={chartMode} setChartMode={setChartMode} />
-              <TokenSubTabs address={address} card={card} subTab={subTab} setSubTab={setSubTab} />
-            </div>
-            <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-              <TokenSidebar card={card} address={address} onRefresh={() => load(address)} />
-            </div>
+          <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
+            <TokenSidebar card={card} address={address} onRefresh={() => load(address)} />
           </div>
-        </>
-      )}
+        </div>
+      ) : (
+        // Mobile: single column, chart first, then sub-tabs, then DD card.
+        <div>
+          <TokenChart address={address} card={card} chartMode={chartMode} setChartMode={setChartMode} />
+          <TokenSubTabs address={address} card={card} subTab={subTab} setSubTab={setSubTab} />
+          <div className="mt-6">
+            <TokenSidebar card={card} address={address} onRefresh={() => load(address)} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

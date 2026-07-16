@@ -30,7 +30,7 @@ export interface RosterWallet {
   address: string;
   label: string | null;
   created_at: string;
-  performance7d: { win_rate: number | null; avg_return_pct: number | null; trades: number } | null;
+  performance7d: { win_rate: number | null; avg_return_pct: number | null; trades: number; computed_at: string } | null;
 }
 
 export interface Alert {

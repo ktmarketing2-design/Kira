@@ -11,6 +11,17 @@ function truncate(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export default function RosterPage() {
   const { me } = useAppData();
   const [wallets, setWallets] = useState<RosterWallet[]>([]);
@@ -19,6 +30,8 @@ export default function RosterPage() {
   const [label, setLabel] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshingAddress, setRefreshingAddress] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
@@ -60,8 +73,31 @@ export default function RosterPage() {
     setWallets((prev) => prev.filter((w) => w.address !== walletAddress));
   }
 
+  async function handleRefreshPerformance(walletAddress: string) {
+    setRefreshError(null);
+    setRefreshingAddress(walletAddress);
+    try {
+      await apiRequest("POST", `/roster/${walletAddress}/refresh-performance`);
+    } catch (err) {
+      setRefreshError(
+        err instanceof ApiError && err.status === 429
+          ? "Already refreshed in the last hour."
+          : "Couldn't refresh performance for that wallet.",
+      );
+    } finally {
+      setRefreshingAddress(null);
+    }
+  }
+
   const tier = me?.tier ?? "scout";
   const limit = TIER_LIMITS[tier] ?? 5;
+  const canRefreshPerformance = tier === "pro" || tier === "elite";
+
+  const sortedWallets = [...wallets].sort((a, b) => {
+    const aRate = a.performance7d?.win_rate ?? -1;
+    const bRate = b.performance7d?.win_rate ?? -1;
+    return bRate - aRate;
+  });
 
   return (
     <div>
@@ -95,6 +131,8 @@ export default function RosterPage() {
         </p>
       </div>
 
+      {refreshError && <p className="text-xs text-kira-red mb-2">{refreshError}</p>}
+
       {loading ? (
         <div className="text-kira-text-muted text-sm">Loading...</div>
       ) : wallets.length === 0 ? (
@@ -114,12 +152,13 @@ export default function RosterPage() {
                 <th className="px-4 py-3 font-normal">Label</th>
                 <th className="px-4 py-3 font-normal">7d Win Rate</th>
                 <th className="px-4 py-3 font-normal">Avg Return</th>
+                <th className="px-4 py-3 font-normal">Last Computed</th>
                 <th className="px-4 py-3 font-normal">Added</th>
                 <th className="px-4 py-3 font-normal"></th>
               </tr>
             </thead>
             <tbody>
-              {wallets.map((w) => (
+              {sortedWallets.map((w) => (
                 <tr key={w.id} className="border-b border-kira-border last:border-0">
                   <td className="px-4 py-3 font-data text-xs text-kira-text">{truncate(w.address)}</td>
                   <td className="px-4 py-3 text-kira-text-muted">{w.label ?? "—"}</td>
@@ -130,9 +169,21 @@ export default function RosterPage() {
                     {w.performance7d?.avg_return_pct != null ? `${w.performance7d.avg_return_pct.toFixed(1)}%` : "—"}
                   </td>
                   <td className="px-4 py-3 text-kira-text-dim text-xs">
+                    {w.performance7d?.computed_at ? timeAgo(w.performance7d.computed_at) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-kira-text-dim text-xs">
                     {new Date(w.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {canRefreshPerformance && (
+                      <button
+                        onClick={() => void handleRefreshPerformance(w.address)}
+                        disabled={refreshingAddress === w.address}
+                        className="text-kira-accent text-xs hover:underline mr-3 disabled:opacity-50"
+                      >
+                        {refreshingAddress === w.address ? "Refreshing..." : "Refresh"}
+                      </button>
+                    )}
                     <button
                       onClick={() => void handleRemove(w.address)}
                       className="text-kira-red text-xs hover:underline"

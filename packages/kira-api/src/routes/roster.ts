@@ -2,7 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { supabase } from "../lib/supabase.js";
 import { requireRosterCapacity } from "../middleware/tier.js";
-import { heliusSyncQueue } from "../lib/queue.js";
+import { heliusSyncQueue, walletPerformanceQueue } from "../lib/queue.js";
+import { redis } from "../lib/redis.js";
 
 const router = Router();
 
@@ -23,7 +24,7 @@ router.get("/", async (req, res) => {
   const { data: performance } = addresses.length
     ? await supabase
         .from("kira_wallet_performance")
-        .select("wallet_address, period, win_rate, avg_return_pct, trades")
+        .select("wallet_address, period, win_rate, avg_return_pct, trades, computed_at")
         .in("wallet_address", addresses)
         .eq("period", "7d")
     : { data: [] };
@@ -126,6 +127,45 @@ router.delete("/:address", async (req, res) => {
   await scheduleHeliusSync();
 
   res.status(204).send();
+});
+
+const REFRESH_RATE_LIMIT_SECONDS = 60 * 60;
+
+/** Manual single-wallet performance refresh. Pro/Elite only, rate limited to once per hour per
+ * wallet so a user can't force-trigger the Helius+GeckoTerminal-heavy scoring pass on demand. */
+router.post("/:address/refresh-performance", async (req, res) => {
+  const tier = req.userTier ?? "scout";
+  if (tier === "scout") {
+    res.status(403).json({
+      error: "Manual performance refresh is a Pro/Elite feature",
+      upgradeUrl: "https://kira.ceronix.ai/upgrade",
+    });
+    return;
+  }
+
+  const { address } = req.params;
+
+  const { count } = await supabase
+    .from("kira_roster_wallets")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", req.user!.id)
+    .eq("address", address);
+
+  if (!count) {
+    res.status(404).json({ error: "Wallet not in roster" });
+    return;
+  }
+
+  const rateLimitKey = `perfrefresh:${address}`;
+  const isNew = await redis.set(rateLimitKey, "1", "EX", REFRESH_RATE_LIMIT_SECONDS, "NX");
+  if (!isNew) {
+    res.status(429).json({ error: "Performance refresh already requested for this wallet in the last hour" });
+    return;
+  }
+
+  await walletPerformanceQueue.add("score", { walletAddress: address });
+
+  res.status(202).json({ queued: true });
 });
 
 export default router;

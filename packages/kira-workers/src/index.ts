@@ -13,7 +13,8 @@ import { startAlertDispatchWorker } from "./workers/alertDispatchWorker.js";
 import { startHeliusSyncWorker } from "./workers/heliusSyncWorker.js";
 import { startSignalScanWorker } from "./workers/signalScanWorker.js";
 import { startPnlDigestWorker } from "./workers/pnlDigestWorker.js";
-import { pnlDigestQueue } from "./lib/queues.js";
+import { startWalletPerformanceWorker } from "./workers/walletPerformanceWorker.js";
+import { pnlDigestQueue, walletPerformanceQueue } from "./lib/queues.js";
 
 const workers = [
   startDdWorker(),
@@ -23,6 +24,7 @@ const workers = [
   startHeliusSyncWorker(),
   startSignalScanWorker(),
   startPnlDigestWorker(),
+  startWalletPerformanceWorker(),
 ];
 
 for (const worker of workers) {
@@ -39,8 +41,15 @@ await pnlDigestQueue.add(
   { repeat: { pattern: "0 6 * * *", tz: "UTC" }, jobId: "daily-pnl-digest" },
 );
 
+await walletPerformanceQueue.add(
+  "score",
+  {},
+  { repeat: { pattern: "0 2 * * *", tz: "UTC" }, jobId: "nightly-wallet-performance" },
+);
+
 console.log(`[kira-workers] ${workers.length} workers started: ${workers.map((w) => w.name).join(", ")}`);
 console.log("[kira-workers] kira-pnl-digest repeatable job registered for 06:00 UTC daily");
+console.log("[kira-workers] kira-wallet-performance repeatable job registered for 02:00 UTC daily");
 
 async function shutdown(): Promise<void> {
   console.log("[kira-workers] shutting down");

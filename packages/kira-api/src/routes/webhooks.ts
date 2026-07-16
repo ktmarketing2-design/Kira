@@ -136,12 +136,44 @@ async function handleSwapTransaction(
 // enhanced-transaction envelope (tokenTransfers with mint addresses) and picks the first mint
 // that isn't a known quote token as the "new token" candidate. Re-verify against a real payload
 // once the webhook is live and adjust if the shape differs.
+const accountDataEntrySchema = z.object({
+  account: z.string().optional(),
+  tokenBalanceChanges: z
+    .array(
+      z.object({
+        mint: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
 const programEventSchema = z.object({
   signature: z.string(),
   timestamp: z.number(),
+  type: z.string().optional(),
   tokenTransfers: z.array(z.object({ mint: z.string().optional() })).optional(),
+  accountData: z.array(accountDataEntrySchema).optional(),
 });
 const programEventBatchSchema = z.array(programEventSchema);
+
+/**
+ * Prefers tokenTransfers (present on most enhanced SWAP/pool-creation events), falls back to
+ * accountData[].tokenBalanceChanges[].mint for event shapes where tokenTransfers is empty, e.g.
+ * some bonding-curve creation events only surface the mint via a balance change on the new
+ * token's account, not a transfer. Either way, skip known quote mints (SOL/USDC/USDT), the
+ * candidate is whichever side of the pool is the actual new token.
+ */
+function extractCandidateMint(event: z.infer<typeof programEventSchema>): string | undefined {
+  const fromTransfers = (event.tokenTransfers ?? [])
+    .map((t) => t.mint)
+    .find((mint): mint is string => !!mint && !QUOTE_MINTS.has(mint));
+  if (fromTransfers) return fromTransfers;
+
+  return (event.accountData ?? [])
+    .flatMap((a) => a.tokenBalanceChanges ?? [])
+    .map((c) => c.mint)
+    .find((mint): mint is string => !!mint && !QUOTE_MINTS.has(mint));
+}
 
 router.post("/helius-programs", async (req, res) => {
   const secret = process.env.HELIUS_WEBHOOK_SECRET;
@@ -161,10 +193,16 @@ router.post("/helius-programs", async (req, res) => {
 
   let enqueued = 0;
   for (const event of parsed.data) {
-    const candidate = (event.tokenTransfers ?? [])
-      .map((t) => t.mint)
-      .find((mint): mint is string => !!mint && !QUOTE_MINTS.has(mint));
+    // Same dedup pattern as the swap webhook's helius:sig:{signature} (24h TTL there), but
+    // signal:seen:{signature} at 48h here as specified, matching Tier 1's own signal:seen:
+    // {tokenAddress} TTL in signalScanWorker. Different key prefix use (signature vs token
+    // address) so there is no real collision risk despite the shared "signal:seen:" prefix,
+    // this is webhook-retry protection, Tier 1's token-level dedup is a separate concern.
+    const dedupeKey = `signal:seen:${event.signature}`;
+    const isNew = await redis.set(dedupeKey, "1", "EX", 48 * 60 * 60, "NX");
+    if (!isNew) continue;
 
+    const candidate = extractCandidateMint(event);
     if (!candidate) continue;
 
     await signalScanQueue.add(

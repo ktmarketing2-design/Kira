@@ -1,15 +1,18 @@
-interface DexToolsChartProps {
+interface GeckoTerminalChartProps {
   tokenAddress: string;
   pairAddress: string | null;
 }
 
 /**
- * Primary chart tab: DEXTools' embeddable widget via iframe. No build cost, full professional
- * chart (drawing tools, indicators) without maintaining any of that ourselves. Requires a real
- * DEX pool address, so pre-graduation bonding-curve tokens (no pairAddress yet) fall back to a
- * message + a Pump.fun link instead of an empty/broken iframe.
+ * Primary chart tab: GeckoTerminal's embeddable widget via iframe. Replaces an earlier DEXTools
+ * embed that showed the wrong token — DEXTools uses its own internal pair ID format, not a raw
+ * Solana pool address, so DexScreener's pairAddress (what the DD card actually has) resolved to
+ * the wrong chart there. GeckoTerminal's embed takes the on-chain pool address directly, no
+ * conversion or extra API call needed, and GeckoTerminal is already a data source elsewhere in
+ * Kira. Requires a real DEX pool address, so pre-graduation bonding-curve tokens (no pairAddress
+ * yet) fall back to a message + a Pump.fun link instead of an empty/broken iframe.
  */
-export default function DexToolsChart({ tokenAddress, pairAddress }: DexToolsChartProps) {
+export default function GeckoTerminalChart({ tokenAddress, pairAddress }: GeckoTerminalChartProps) {
   if (!pairAddress) {
     return (
       <div className="bg-kira-surface border border-kira-border rounded-md p-3">
@@ -28,14 +31,14 @@ export default function DexToolsChart({ tokenAddress, pairAddress }: DexToolsCha
     );
   }
 
-  const src = `https://www.dextools.io/widget-chart/en/solana/pe-dark/${pairAddress}?theme=dark&chartType=2&chartResolution=30&drawingToolbars=true`;
+  const src = `https://www.geckoterminal.com/solana/pools/${pairAddress}?embed=1&info=0&swaps=0&grayscale=0&light_chart=0`;
 
   return (
     <div className="bg-kira-surface border border-kira-border rounded-md p-3">
       <div className="w-full" style={{ height: 500 }}>
         <iframe
           src={src}
-          title="DEXTools chart"
+          title="GeckoTerminal chart"
           className="w-full h-full rounded border-0"
           style={{ overflow: "hidden" }}
           scrolling="no"

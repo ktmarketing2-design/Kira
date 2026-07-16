@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
 import DdCardView from "../shell/DdCardView.js";
-import DexToolsChart from "./DexToolsChart.js";
+import GeckoTerminalChart from "./GeckoTerminalChart.js";
 import SignalsChart from "./SignalsChart.js";
 import TransactionsPanel from "./TransactionsPanel.js";
 import BuyersSellersBar from "./BuyersSellersBar.js";
@@ -118,7 +118,7 @@ export default function TokenPage() {
             ))}
           </div>
 
-          {tab === "chart" && <DexToolsChart tokenAddress={address} pairAddress={card.market.pairAddress} />}
+          {tab === "chart" && <GeckoTerminalChart tokenAddress={address} pairAddress={card.market.pairAddress} />}
           {tab === "signals" && <SignalsChart tokenAddress={address} pairAddress={card.market.pairAddress} />}
           {tab === "transactions" && (
             <div className="space-y-4">

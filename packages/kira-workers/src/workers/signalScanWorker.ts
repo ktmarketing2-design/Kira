@@ -109,15 +109,29 @@ async function findRosterWalletsBuying(userId: string, tokenAddress: string): Pr
   }));
 }
 
+// 45s ceiling on cold DD generation (was 20s). Cold BONK-class DD runs measured 10.8-12s+ in
+// isolated tests, and that number compounds under real-world Helius rate-limit variance and
+// Tier 1/2 overhead ahead of this call, occasionally pushing a cold run past 20s and silently
+// skipping filter evaluation for that occurrence (see the distinguishable timeout log below).
+const DD_WAIT_TIMEOUT_MS = 45_000;
+
 async function runDdPipeline(tokenAddress: string): Promise<DdCard | null> {
   const cached = await redis.get(`ddcard:${tokenAddress}`);
   if (cached) return JSON.parse(cached) as DdCard;
 
+  const startedAt = Date.now();
   try {
     const job = await ddQueue.add("dd", { tokenAddress }, { removeOnComplete: true, removeOnFail: true });
-    return (await job.waitUntilFinished(ddQueueEvents, 20_000)) as DdCard;
+    return (await job.waitUntilFinished(ddQueueEvents, DD_WAIT_TIMEOUT_MS)) as DdCard;
   } catch (err) {
-    console.error("[kira-workers:signal-scan] dd pipeline failed:", err instanceof Error ? err.message : err);
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("timed out")) {
+      console.error(
+        `[kira-signal-scan] DD timeout for ${tokenAddress} after ${Date.now() - startedAt}ms - filters skipped. Token will be retried on next occurrence.`,
+      );
+    } else {
+      console.error("[kira-workers:signal-scan] dd pipeline failed:", message);
+    }
     return null;
   }
 }

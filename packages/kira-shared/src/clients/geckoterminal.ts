@@ -99,15 +99,21 @@ async function request<T>(path: string, schema: z.ZodType<T>): Promise<T> {
   return parsed.data;
 }
 
-/** timeframe: 'day' | 'hour' | 'minute' per GeckoTerminal's OHLCV endpoint convention. */
+/** timeframe: 'day' | 'hour' | 'minute' per GeckoTerminal's OHLCV endpoint convention.
+ * aggregate is the bucket multiplier within that timeframe (e.g. timeframe="minute",
+ * aggregate=15 -> 15-minute candles). limit is capped at 1000 by the real API. */
 export async function getOhlcv(
   network: string,
   poolAddress: string,
   timeframe: "day" | "hour" | "minute" = "hour",
+  options: { aggregate?: number; limit?: number } = {},
 ): Promise<OhlcvCandle[]> {
   try {
+    const params = new URLSearchParams({ currency: "usd" });
+    if (options.aggregate) params.set("aggregate", String(options.aggregate));
+    if (options.limit) params.set("limit", String(options.limit));
     const data = await request(
-      `/networks/${network}/pools/${poolAddress}/ohlcv/${timeframe}`,
+      `/networks/${network}/pools/${poolAddress}/ohlcv/${timeframe}?${params.toString()}`,
       ohlcvResponseSchema,
     );
     return data.data.attributes.ohlcv_list.map(([timestamp, open, high, low, close, volume]) => ({

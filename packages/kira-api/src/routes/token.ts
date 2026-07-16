@@ -4,7 +4,7 @@ import { redis } from "../lib/redis.js";
 import { supabase } from "../lib/supabase.js";
 import { ddQueue, ddQueueEvents, volumeQueue, volumeQueueEvents } from "../lib/queue.js";
 import { requireDdQuota } from "../middleware/tier.js";
-import { helius, jupiter, type HeliusConfig } from "@ceronix/kira-shared";
+import { helius, jupiter, geckoterminal, type HeliusConfig } from "@ceronix/kira-shared";
 
 const router = Router();
 
@@ -13,6 +13,14 @@ const VOLUME_JOB_TIMEOUT_MS = 15_000;
 const TX_HISTORY_LOOKBACK = 60; // fetch more than 20 since not every parsed tx yields a transfer for this mint
 const TX_RESULT_LIMIT = 20;
 const heliusConfig: HeliusConfig = { apiKey: process.env.HELIUS_API_KEY ?? "" };
+
+const OHLCV_CACHE_TTL_SECONDS = 60;
+const TIMEFRAME_PARAMS: Record<string, { timeframe: "minute" | "hour" | "day"; aggregate: number }> = {
+  "15m": { timeframe: "minute", aggregate: 15 },
+  "1h": { timeframe: "hour", aggregate: 1 },
+  "4h": { timeframe: "hour", aggregate: 4 },
+  "1d": { timeframe: "day", aggregate: 1 },
+};
 
 function timeAgo(timestampMs: number): string {
   const diffMs = Date.now() - timestampMs;
@@ -141,6 +149,41 @@ router.get("/:address/transactions", async (req, res) => {
     console.error("[kira-api:token] transactions failed:", err instanceof Error ? err.message : err);
     res.json({ transactions: [], source: "unavailable" });
   }
+});
+
+// Cached OHLCV proxy so the browser never calls GeckoTerminal directly (avoids CORS and keeps
+// GeckoTerminal's own rate limit off end users). pairAddress comes from the frontend's already-
+// fetched DD card, not resolved server-side here, avoiding a redundant lookup on every candle
+// refetch.
+router.get("/:address/ohlcv", async (req, res) => {
+  const pairAddress = typeof req.query.pairAddress === "string" ? req.query.pairAddress : null;
+  const timeframeKey = typeof req.query.timeframe === "string" ? req.query.timeframe : "15m";
+  const params = TIMEFRAME_PARAMS[timeframeKey];
+
+  if (!pairAddress) {
+    res.status(400).json({ error: "pairAddress query param is required" });
+    return;
+  }
+  if (!params) {
+    res.status(400).json({ error: "Invalid timeframe, expected one of: 15m, 1h, 4h, 1d" });
+    return;
+  }
+
+  const cacheKey = `ohlcv:${pairAddress}:${timeframeKey}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    res.json(JSON.parse(cached));
+    return;
+  }
+
+  const candles = await geckoterminal.getOhlcv("solana", pairAddress, params.timeframe, {
+    aggregate: params.aggregate,
+    limit: 1000,
+  });
+
+  const payload = { candles };
+  await redis.set(cacheKey, JSON.stringify(payload), "EX", OHLCV_CACHE_TTL_SECONDS);
+  res.json(payload);
 });
 
 // On-chain overlay markers for Chart Studio: alerts (cluster buy/sell, signal filter match) and

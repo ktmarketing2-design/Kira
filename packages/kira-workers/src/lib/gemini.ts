@@ -27,9 +27,13 @@ function secondsUntilMidnightUtc(): number {
   return Math.ceil((midnight - now.getTime()) / 1000);
 }
 
-/** Reserves estimated tokens against the module's daily budget. Returns false if it would exceed the cap. */
-export async function reserveGeminiBudget(module: string, estimatedTokens: number): Promise<boolean> {
-  const cap = DAILY_TOKEN_BUDGET[module] ?? 50_000;
+/** Reserves estimated tokens against the module's daily budget. Returns false if it would exceed
+ * the cap. capOverride lets a caller use a distinct cap for a distinct budget key without adding
+ * every possible key to the static DAILY_TOKEN_BUDGET map (e.g. one key per KOL source during
+ * backfill, capped smaller than the shared live-ingestion budget so no single channel can
+ * consume the whole day's classifier budget before the others get a turn). */
+export async function reserveGeminiBudget(module: string, estimatedTokens: number, capOverride?: number): Promise<boolean> {
+  const cap = capOverride ?? DAILY_TOKEN_BUDGET[module] ?? 50_000;
   const key = budgetKey(module);
 
   const used = await redis.incrby(key, estimatedTokens);

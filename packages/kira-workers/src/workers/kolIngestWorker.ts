@@ -12,6 +12,8 @@ const CLASSIFY_MODEL = "gemini-flash-lite-latest";
 const CLASSIFY_ESTIMATED_TOKENS = 200;
 const BACKFILL_DAYS = 30;
 const BACKFILL_DONE_TTL_SECONDS = 400 * 24 * 60 * 60; // long-lived, backfill is meant to run once ever
+const BACKFILL_PER_CHANNEL_TOKEN_CAP = 10_000;
+const BACKFILL_JUPITER_DELAY_MS = 500;
 
 // 32-44 chars, base58 alphabet (no 0/O/I/l), same pattern used by the /kol regex pre-filter spec.
 const SOLANA_ADDRESS_RE = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
@@ -49,8 +51,17 @@ function extractCandidateAddress(text: string): string | null {
 /** Returns null specifically when the daily Gemini budget is exhausted (distinct from a
  * confident "no"), so callers — backfill in particular — can tell "not a call" apart from
  * "couldn't check, budget's out" and react differently (skip vs. stop and retry later). */
-async function classifyIsCall(text: string): Promise<boolean | null> {
-  const budgetOk = await reserveGeminiBudget("kol-classify", CLASSIFY_ESTIMATED_TOKENS);
+async function classifyIsCall(
+  text: string,
+  budgetContext: { isBackfill: boolean; sourceId?: string },
+): Promise<boolean | null> {
+  const budgetOk = budgetContext.isBackfill
+    ? await reserveGeminiBudget(
+        `kol-classify-backfill:${budgetContext.sourceId}`,
+        CLASSIFY_ESTIMATED_TOKENS,
+        BACKFILL_PER_CHANNEL_TOKEN_CAP,
+      )
+    : await reserveGeminiBudget("kol-classify", CLASSIFY_ESTIMATED_TOKENS);
   if (!budgetOk) return null;
 
   const prompt =
@@ -77,6 +88,7 @@ interface ProcessMessageParams {
   messageId: string;
   text: string;
   calledAt: Date;
+  isBackfill: boolean;
 }
 
 /** Returns "budget_exhausted" to let backfill distinguish that from a normal skip. */
@@ -84,10 +96,13 @@ async function processMessageText(params: ProcessMessageParams): Promise<"record
   const candidate = extractCandidateAddress(params.text);
   if (!candidate) return "skipped";
 
-  const isCall = await classifyIsCall(params.text);
+  const isCall = await classifyIsCall(params.text, { isBackfill: params.isBackfill, sourceId: params.sourceId ?? undefined });
   if (isCall === null) return "budget_exhausted";
   if (!isCall) return "skipped";
 
+  if (params.isBackfill) {
+    await new Promise((resolve) => setTimeout(resolve, BACKFILL_JUPITER_DELAY_MS));
+  }
   const priceAtCall = await jupiter.getPrice(candidate);
 
   const { data, error } = await supabase
@@ -143,6 +158,7 @@ async function runBackfillOnce(client: TelegramClient, source: KolSourceRow, ent
         messageId: String(message.id),
         text: message.text,
         calledAt: new Date(message.date * 1000),
+        isBackfill: true,
       });
       scanned++;
       if (result === "recorded") recorded++;
@@ -230,6 +246,7 @@ export async function startKolIngest(): Promise<void> {
         messageId: String(message.id),
         text: message.text,
         calledAt: new Date(message.date * 1000),
+        isBackfill: false,
       });
     } catch (err) {
       console.error(

@@ -53,6 +53,47 @@ export interface TokenHolder {
 }
 
 /** Top N holders (by raw token account balance, not owner-deduplicated) for a mint. */
+const tokenSupplyRpcSchema = z.object({
+  result: z.object({
+    value: z.object({
+      amount: z.string(),
+      decimals: z.number(),
+      uiAmount: z.number().nullable(),
+    }),
+  }),
+});
+
+/** Total circulating supply for a mint, used to turn getTokenLargestAccounts balances into
+ * percentages for the top-holders panel. */
+export async function getTokenSupply(config: HeliusConfig, mintAddress: string): Promise<number | null> {
+  await limiter.acquire();
+  try {
+    const res = await fetch(`${RPC_URL}/?api-key=${config.apiKey}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "kira-token-supply",
+        method: "getTokenSupply",
+        params: [mintAddress],
+      }),
+    });
+    recordHeliusResult(res.status);
+    if (!res.ok) {
+      throw new KiraClientError(SOURCE, `unexpected status ${res.status}`, { status: res.status });
+    }
+    const json = await res.json();
+    const parsed = tokenSupplyRpcSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new KiraClientError(SOURCE, `response validation failed: ${parsed.error.message}`);
+    }
+    return parsed.data.result.value.uiAmount;
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return null;
+  }
+}
+
 export async function getTokenLargestAccounts(
   config: HeliusConfig,
   mintAddress: string,

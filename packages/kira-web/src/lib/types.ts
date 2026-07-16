@@ -124,7 +124,12 @@ export interface DdCard {
     priceUsd: number | null;
     marketCapUsd: number | null;
     pairAddress: string | null;
+    buys24h: number | null;
+    sells24h: number | null;
+    buyVolume24hUsd: number | null;
+    sellVolume24hUsd: number | null;
   };
+  topHolders: Array<{ address: string; pct: number | null; isDev: boolean }>;
   safety: {
     mintAuthorityRevoked: boolean;
     freezeAuthorityRevoked: boolean;

@@ -2,10 +2,22 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
 import DdCardView from "../shell/DdCardView.js";
-import ChartStudio from "./ChartStudio.js";
+import DexToolsChart from "./DexToolsChart.js";
+import SignalsChart from "./SignalsChart.js";
+import TransactionsPanel from "./TransactionsPanel.js";
+import BuyersSellersBar from "./BuyersSellersBar.js";
+import HoldersPanel from "./HoldersPanel.js";
 import type { DdCard } from "../lib/types.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+type Tab = "chart" | "signals" | "transactions" | "holders";
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: "chart", label: "📊 Chart" },
+  { id: "signals", label: "🎯 Signals" },
+  { id: "transactions", label: "📋 Transactions" },
+  { id: "holders", label: "👥 Holders" },
+];
 
 export default function TokenPage() {
   const { address } = useParams<{ address: string }>();
@@ -14,6 +26,7 @@ export default function TokenPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<Tab>("chart");
 
   function load(addr: string) {
     setLoading(true);
@@ -73,7 +86,7 @@ export default function TokenPage() {
         <>
           <DdCardView card={card} />
 
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-3 mt-4 mb-6">
             <button
               onClick={() => load(address)}
               className="text-sm bg-kira-surface-2 border border-kira-border text-kira-text rounded px-3 py-2 hover:border-kira-accent"
@@ -89,9 +102,38 @@ export default function TokenPage() {
             </button>
           </div>
 
-          <div className="mt-6">
-            <ChartStudio tokenAddress={address} pairAddress={card.market.pairAddress} />
+          <div className="flex gap-1 mb-3 border-b border-kira-border">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`text-sm px-3 py-2 border-b-2 -mb-px ${
+                  tab === t.id
+                    ? "border-kira-accent text-kira-accent"
+                    : "border-transparent text-kira-text-muted hover:text-kira-text"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
+
+          {tab === "chart" && <DexToolsChart tokenAddress={address} pairAddress={card.market.pairAddress} />}
+          {tab === "signals" && <SignalsChart tokenAddress={address} pairAddress={card.market.pairAddress} />}
+          {tab === "transactions" && (
+            <div className="space-y-4">
+              <BuyersSellersBar
+                buys24h={card.market.buys24h}
+                sells24h={card.market.sells24h}
+                buyVolume24hUsd={card.market.buyVolume24hUsd}
+                sellVolume24hUsd={card.market.sellVolume24hUsd}
+              />
+              <TransactionsPanel tokenAddress={address} />
+            </div>
+          )}
+          {tab === "holders" && (
+            <HoldersPanel holders={card.topHolders} top10HolderPct={card.safety.top10HolderPct} />
+          )}
         </>
       )}
     </div>

@@ -43,7 +43,14 @@ export interface DdCard {
     priceUsd: number | null;
     marketCapUsd: number | null;
     pairAddress: string | null;
+    buys24h: number | null;
+    sells24h: number | null;
+    // DexScreener has no per-side USD volume, this is volume24hUsd split proportionally by
+    // buys24h/sells24h counts, not a real measured value. Null whenever counts are unavailable.
+    buyVolume24hUsd: number | null;
+    sellVolume24hUsd: number | null;
   };
+  topHolders: Array<{ address: string; pct: number | null; isDev: boolean }>;
   safety: {
     mintAuthorityRevoked: boolean;
     freezeAuthorityRevoked: boolean;
@@ -86,6 +93,8 @@ interface MarketData {
   dexId?: string;
   symbol: string | null;
   name: string | null;
+  buys24h?: number | null;
+  sells24h?: number | null;
 }
 
 const NO_MARKET_DATA: MarketData = {
@@ -125,6 +134,8 @@ async function resolveMarketData(tokenAddress: string): Promise<{ data: MarketDa
         dexId: dexInfo.dexId,
         symbol: dexInfo.symbol,
         name: dexInfo.name,
+        buys24h: dexInfo.buys24h,
+        sells24h: dexInfo.sells24h,
       },
     };
   }
@@ -334,10 +345,11 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
     return JSON.parse(cached) as DdCard;
   }
 
-  const [report, security, holders, { data: market, launchpad }, socialSignals] = await Promise.all([
+  const [report, security, holders, totalSupply, { data: market, launchpad }, socialSignals] = await Promise.all([
     rugcheck.getTokenReport(tokenAddress),
     goplus.getTokenSecurity(CHAIN_ID, tokenAddress),
     helius.getTokenLargestAccounts(heliusConfig, tokenAddress),
+    helius.getTokenSupply(heliusConfig, tokenAddress),
     resolveMarketData(tokenAddress),
     resolveSocialSignals(tokenAddress),
   ]);
@@ -407,6 +419,23 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
     if (generated) verdictText = generated.trim();
   }
 
+  let buyVolume24hUsd: number | null = null;
+  let sellVolume24hUsd: number | null = null;
+  const totalTxns24h = (market.buys24h ?? 0) + (market.sells24h ?? 0);
+  if (market.buys24h != null && market.sells24h != null && market.volume24hUsd != null && totalTxns24h > 0) {
+    buyVolume24hUsd = (market.volume24hUsd * market.buys24h) / totalTxns24h;
+    sellVolume24hUsd = (market.volume24hUsd * market.sells24h) / totalTxns24h;
+  }
+
+  // Top 5 by raw token-account balance (not owner-deduplicated, see helius.ts). LP-wallet
+  // detection is not implemented, there is no reliable LP account address available from any
+  // current data source, only deployer-wallet detection (via RugCheck's deployerAddress) works.
+  const topHolders = holders.slice(0, 5).map((h) => ({
+    address: h.address,
+    pct: totalSupply && totalSupply > 0 && h.uiAmount != null ? (h.uiAmount / totalSupply) * 100 : null,
+    isDev: h.address === deployerAddress,
+  }));
+
   const card: DdCard = {
     tokenAddress,
     symbol,
@@ -423,7 +452,12 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
       priceUsd: market.priceUsd,
       marketCapUsd: market.marketCapUsd,
       pairAddress: market.pairAddress ?? null,
+      buys24h: market.buys24h ?? null,
+      sells24h: market.sells24h ?? null,
+      buyVolume24hUsd: buyVolume24hUsd,
+      sellVolume24hUsd: sellVolume24hUsd,
     },
+    topHolders: topHolders,
     safety: {
       mintAuthorityRevoked: report?.mintAuthorityRevoked ?? false,
       freezeAuthorityRevoked: report?.freezeAuthorityRevoked ?? false,
@@ -440,8 +474,6 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
     verdictText,
     generatedAt: new Date().toISOString(),
   };
-
-  void holders; // fetched for future top-holder display, not yet surfaced in the card body
 
   await redis.set(cacheKey, JSON.stringify(card), "EX", CACHE_TTL_SECONDS);
 

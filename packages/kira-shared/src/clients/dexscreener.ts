@@ -21,6 +21,7 @@ const dexScreenerTokenSchema = z.object({
   fdv: z.number().optional(),
   liquidity: z.object({ usd: z.number().optional() }).optional(),
   volume: z.object({ h24: z.number().optional() }).optional(),
+  txns: z.object({ h24: z.object({ buys: z.number().optional(), sells: z.number().optional() }).optional() }).optional(),
 });
 
 const dexScreenerSearchResponseSchema = z.object({
@@ -38,6 +39,11 @@ export interface TokenInfo {
   dexId: string;
   symbol: string | null;
   name: string | null;
+  // DexScreener only exposes buy/sell counts, not a per-side USD volume split (verified live
+  // against the real API, no buyVolume/sellVolume fields exist). Callers approximate the $ split
+  // proportionally from these counts against volume24hUsd if they need one.
+  buys24h: number | null;
+  sells24h: number | null;
 }
 
 const boostSchema = z.object({
@@ -132,6 +138,8 @@ export async function getTokenInfo(chainId: string, address: string): Promise<To
       dexId: best.dexId,
       symbol: best.baseToken.symbol ?? null,
       name: best.baseToken.name ?? null,
+      buys24h: best.txns?.h24?.buys ?? null,
+      sells24h: best.txns?.h24?.sells ?? null,
     };
   } catch (err) {
     logClientFailure(SOURCE, err);

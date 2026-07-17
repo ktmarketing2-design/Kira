@@ -330,7 +330,13 @@ bot.command("pnl", async (ctx) => {
       "/pnl/wallets",
     );
     if (walletsResult.wallets.length === 0) {
-      await ctx.reply("No wallets tracked for PnL yet.\n\nAdd a wallet: /pnl add [address]");
+      await ctx.reply(
+        "📊 No PnL wallets configured yet.\n\n" +
+          "Add your Solana wallet to track your trading performance:\n" +
+          "/pnl add [wallet address]\n\n" +
+          "Example:\n" +
+          "/pnl add DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      );
       return;
     }
 

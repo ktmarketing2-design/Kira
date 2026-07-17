@@ -177,6 +177,7 @@ export default function TokenPage() {
   const isDesktop = useIsDesktop();
 
   function load(addr: string) {
+    setCard(null); // clear immediately so a token switch never briefly renders the previous token's DD data
     setLoading(true);
     setError(null);
     apiRequest<DdCard>("GET", `/token/${addr}/dd`)

@@ -1,8 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, Bell, Target, Megaphone, Search, LineChart, Settings, ArrowUpCircle } from "lucide-react";
+import { LayoutDashboard, Users, Bell, Target, Megaphone, Search, LineChart, Settings, ArrowUpCircle, Rocket } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/discover", label: "Discover", icon: Rocket },
   { to: "/roster", label: "Roster", icon: Users },
   { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/filters", label: "Signal Filters", icon: Target },

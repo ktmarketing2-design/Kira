@@ -383,6 +383,76 @@ bot.command("pnl", async (ctx) => {
   }
 });
 
+bot.command("watchlist", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const arg = ctx.match?.trim();
+  if (arg?.startsWith("add ")) {
+    const address = arg.slice(4).trim();
+    if (!isLikelyAddress(address)) {
+      await ctx.reply("Usage: /watchlist add <token address>");
+      return;
+    }
+    try {
+      await apiRequest(userId, "POST", "/watchlist", { tokenAddress: address });
+      await ctx.reply(`Added ${truncateAddress(address)} to your watchlist.`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        await ctx.reply("Watchlist limit reached for your tier. Upgrade with /upgrade.");
+        return;
+      }
+      if (err instanceof ApiError && err.status === 409) {
+        await ctx.reply("That token is already in your watchlist.");
+        return;
+      }
+      await replyWithApiError(ctx, err, "Couldn't add that token.");
+    }
+    return;
+  }
+
+  if (arg?.startsWith("remove ")) {
+    const address = arg.slice(7).trim();
+    if (!isLikelyAddress(address)) {
+      await ctx.reply("Usage: /watchlist remove <token address>");
+      return;
+    }
+    try {
+      await apiRequest(userId, "DELETE", `/watchlist/${address}`);
+      await ctx.reply(`Removed ${truncateAddress(address)} from your watchlist.`);
+    } catch (err) {
+      await replyWithApiError(ctx, err, "Couldn't remove that token.");
+    }
+    return;
+  }
+
+  try {
+    const result = await apiRequest<{
+      tokens: Array<{ tokenAddress: string; tokenSymbol: string | null; addedAt: string }>;
+    }>(userId, "GET", "/watchlist");
+
+    if (result.tokens.length === 0) {
+      await ctx.reply(
+        "⭐ No tokens saved yet.\n\n" +
+          "Add a token to your watchlist:\n" +
+          "/watchlist add [token address]\n\n" +
+          "Example:\n" +
+          "/watchlist add DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      );
+      return;
+    }
+
+    const lines = ["⭐ Your Watchlist", ""];
+    for (const t of result.tokens) {
+      lines.push(`$${t.tokenSymbol ?? truncateAddress(t.tokenAddress)} — ${truncateAddress(t.tokenAddress)}`);
+    }
+    lines.push("", "Remove a token: /watchlist remove [address]");
+    await ctx.reply(lines.join("\n"));
+  } catch (err) {
+    await replyWithApiError(ctx, err, "Couldn't load your watchlist.");
+  }
+});
+
 bot.command("kol", async (ctx) => {
   const userId = ctx.from?.id;
   if (!userId) return;
@@ -459,6 +529,7 @@ await bot.api.setMyCommands([
   { command: "filters", description: "View your signal filters" },
   { command: "kol", description: "KOL tracker and personal sources" },
   { command: "pnl", description: "Your PnL digest" },
+  { command: "watchlist", description: "Your saved tokens: /watchlist [add|remove] [address]" },
   { command: "upgrade", description: "View plans and upgrade" },
 ]);
 

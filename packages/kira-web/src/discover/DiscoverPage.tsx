@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api.js";
+import WatchlistButton from "../shell/WatchlistButton.js";
 
 type DiscoverType = "new_creation" | "near_completion" | "completed";
 
@@ -181,12 +182,15 @@ export default function DiscoverPage() {
                     <td className="px-4 py-3 font-data text-xs text-kira-text-muted">{fmtUsd(t.liquidity)}</td>
                     <td className="px-4 py-3 font-data text-xs text-kira-text-muted">{t.holderCount ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => navigate(`/token/${t.address}`)}
-                        className="text-xs px-2 py-1 rounded border border-kira-border text-kira-text-muted hover:text-kira-text hover:border-kira-accent"
-                      >
-                        DD
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => navigate(`/token/${t.address}`)}
+                          className="text-xs px-2 py-1 rounded border border-kira-border text-kira-text-muted hover:text-kira-text hover:border-kira-accent"
+                        >
+                          DD
+                        </button>
+                        <WatchlistButton tokenAddress={t.address} tokenSymbol={t.symbol} tokenName={t.name} />
+                      </div>
                     </td>
                   </tr>
                 );

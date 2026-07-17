@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Alert } from "../lib/types.js";
+import WatchlistButton from "../shell/WatchlistButton.js";
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -61,7 +62,7 @@ export default function AlertCard({ alert }: { alert: Alert }) {
         <Link to={`/token/${alert.token_address}`} className="text-kira-accent hover:underline">
           Full DD
         </Link>
-        <span className="text-kira-text-dim">Add to Watchlist</span>
+        <WatchlistButton tokenAddress={alert.token_address} tokenSymbol={alert.token_symbol} />
         <span className="text-kira-text-dim">Mute</span>
       </div>
     </div>

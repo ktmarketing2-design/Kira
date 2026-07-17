@@ -9,6 +9,7 @@ import BuyersSellersBar from "./BuyersSellersBar.js";
 import HoldersPanel from "./HoldersPanel.js";
 import SmartMoneyPanel from "./SmartMoneyPanel.js";
 import BuyTokenModal from "./BuyTokenModal.js";
+import WatchlistButton from "../shell/WatchlistButton.js";
 import type { DdCard } from "../lib/types.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -144,6 +145,12 @@ function TokenSidebar({ card, address, onRefresh }: { card: DdCard; address: str
           Refresh DD
         </button>
       </div>
+      <WatchlistButton
+        tokenAddress={card.tokenAddress}
+        tokenSymbol={card.symbol}
+        tokenName={card.name}
+        variant="button"
+      />
       <p className="text-xs text-kira-text-dim font-data truncate" title={address}>
         {address}
       </p>

@@ -11,16 +11,18 @@ export const TIER_LIMITS: Record<
     minClusterThreshold: number;
     maxSignalFilters: number;
     maxPnlWallets: number;
+    maxUserKolSources: number;
   }
 > = {
-  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3, maxSignalFilters: 1, maxPnlWallets: 1 },
-  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2, maxSignalFilters: 5, maxPnlWallets: 5 },
+  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3, maxSignalFilters: 1, maxPnlWallets: 1, maxUserKolSources: 3 },
+  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2, maxSignalFilters: 5, maxPnlWallets: 5, maxUserKolSources: 20 },
   elite: {
     maxWallets: Infinity,
     maxDdPerDay: Infinity,
     minClusterThreshold: 2,
     maxSignalFilters: Infinity,
     maxPnlWallets: Infinity,
+    maxUserKolSources: Infinity,
   },
   studio: {
     maxWallets: Infinity,
@@ -28,6 +30,7 @@ export const TIER_LIMITS: Record<
     minClusterThreshold: 2,
     maxSignalFilters: Infinity,
     maxPnlWallets: Infinity,
+    maxUserKolSources: Infinity,
   },
 };
 
@@ -197,6 +200,38 @@ export async function requireDdQuota(req: Request, res: Response, next: NextFunc
   if (current > limit) {
     res.status(403).json({
       error: `Daily Deep Dive limit reached (${limit}/day on ${tier} tier)`,
+      upgradeUrl: "https://kira.ceronix.ai/upgrade",
+    });
+    return;
+  }
+
+  next();
+}
+
+/** Rejects adding a personal KOL source once the tier's cap is reached. */
+export async function requireUserKolSourceCapacity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const tier = req.userTier ?? "scout";
+  const limit = TIER_LIMITS[tier].maxUserKolSources;
+
+  if (limit === Infinity) {
+    next();
+    return;
+  }
+
+  const { count, error } = await supabase
+    .from("kira_user_kol_sources")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", req.user!.id);
+
+  if (error) {
+    console.error("[kira-api:tier] user kol source count failed:", error.message);
+    res.status(500).json({ error: "Internal server error checking KOL source limit" });
+    return;
+  }
+
+  if ((count ?? 0) >= limit) {
+    res.status(403).json({
+      error: `Personal KOL source limit reached (${limit} on ${tier} tier)`,
       upgradeUrl: "https://kira.ceronix.ai/upgrade",
     });
     return;

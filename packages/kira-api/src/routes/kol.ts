@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { z } from "zod";
 import { supabase } from "../lib/supabase.js";
+import { requireUserKolSourceCapacity } from "../middleware/tier.js";
 
 const router = Router();
 
@@ -190,6 +192,118 @@ router.get("/sources/:id/calls", async (req, res) => {
     })),
     nextCursor,
   });
+});
+
+// ============================================================================
+// Personal KOL sources (Sprint 8 Bug 4): user-managed channel list, separate from the
+// curated kira_kol_sources table above. Management (add/list/remove) only -- kolIngestWorker
+// does not yet watch these channels, so totalCalls/lastCallAt stay 0/null until that ingestion
+// path is built as separate follow-up work. Flagged to the user rather than silently building a
+// bigger ingestion change under a "bug fix" label.
+// ============================================================================
+
+const CHANNEL_HANDLE_RE = /^@?[A-Za-z0-9_]{5,32}$/;
+
+function normalizeHandle(raw: string): string {
+  return raw.trim().replace(/^@/, "");
+}
+
+router.get("/user-sources", async (req, res) => {
+  const { data, error } = await supabase
+    .from("kira_user_kol_sources")
+    .select("id, platform, channel_identifier, display_name, active, added_at")
+    .eq("user_id", req.user!.id)
+    .order("added_at", { ascending: false });
+
+  if (error) {
+    console.error("[kira-api:kol] user-sources list failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  // totalCalls/lastCallAt are placeholders (always 0/null): kolIngestWorker only ever watches
+  // the curated kira_kol_sources list today, personal sources aren't ingested yet, so there is
+  // nothing in kira_kol_calls to attribute back to a personal source_id.
+  res.json({
+    sources: (data ?? []).map((s) => ({
+      id: s.id,
+      platform: s.platform,
+      channelIdentifier: s.channel_identifier,
+      displayName: s.display_name,
+      active: s.active,
+      addedAt: s.added_at,
+      totalCalls: 0,
+      lastCallAt: null,
+    })),
+  });
+});
+
+const addUserSourceSchema = z.object({
+  channelIdentifier: z.string().min(1).max(64),
+});
+
+router.post("/user-sources", requireUserKolSourceCapacity, async (req, res) => {
+  const parsed = addUserSourceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+    return;
+  }
+
+  const handle = normalizeHandle(parsed.data.channelIdentifier);
+  if (!CHANNEL_HANDLE_RE.test(handle)) {
+    res.status(400).json({ error: "Enter a valid Telegram @handle" });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("kira_user_kol_sources")
+    .insert({ user_id: req.user!.id, platform: "telegram", channel_identifier: handle })
+    .select("id, platform, channel_identifier, display_name, active, added_at")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      res.status(409).json({ error: "That channel is already in your sources" });
+      return;
+    }
+    console.error("[kira-api:kol] user-source insert failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.status(201).json({
+    source: {
+      id: data.id,
+      platform: data.platform,
+      channelIdentifier: data.channel_identifier,
+      displayName: data.display_name,
+      active: data.active,
+      addedAt: data.added_at,
+      totalCalls: 0,
+      lastCallAt: null,
+    },
+  });
+});
+
+router.delete("/user-sources/:id", async (req, res) => {
+  const { error, count } = await supabase
+    .from("kira_user_kol_sources")
+    .delete({ count: "exact" })
+    .eq("id", req.params.id)
+    .eq("user_id", req.user!.id);
+
+  if (error) {
+    console.error("[kira-api:kol] user-source delete failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  if (!count) {
+    res.status(404).json({ error: "Source not found" });
+    return;
+  }
+
+  res.status(204).send();
 });
 
 export default router;

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { apiRequest } from "../lib/api.js";
+import { apiRequest, ApiError } from "../lib/api.js";
+import { useAppData } from "../shell/AppDataContext.js";
 
 interface KolSourceStats {
   id: string;
@@ -234,8 +235,140 @@ function CallHistory({ sources }: { sources: KolSourceStats[] }) {
   );
 }
 
+interface UserKolSource {
+  id: string;
+  platform: string;
+  channelIdentifier: string;
+  displayName: string | null;
+  active: boolean;
+  addedAt: string;
+  totalCalls: number;
+  lastCallAt: string | null;
+}
+
+const USER_KOL_SOURCE_LIMITS: Record<string, number> = { scout: 3, pro: 20, elite: Infinity, studio: Infinity };
+
+function MySources({ tier }: { tier: string }) {
+  const [sources, setSources] = useState<UserKolSource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [handle, setHandle] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function load() {
+    setLoading(true);
+    apiRequest<{ sources: UserKolSource[] }>("GET", "/kol/user-sources")
+      .then((res) => setSources(res.sources))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, []);
+
+  const limit = USER_KOL_SOURCE_LIMITS[tier] ?? 3;
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = handle.trim();
+    if (!trimmed) return;
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await apiRequest("POST", "/kol/user-sources", { channelIdentifier: trimmed });
+      setHandle("");
+      load();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setFormError("Personal source limit reached for your tier. Upgrade to add more.");
+      } else if (err instanceof ApiError && err.status === 409) {
+        setFormError("That channel is already in your sources.");
+      } else if (err instanceof ApiError && err.status === 400) {
+        setFormError("Enter a valid Telegram @handle.");
+      } else {
+        setFormError("Couldn't add that channel.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRemove(id: string) {
+    await apiRequest("DELETE", `/kol/user-sources/${id}`);
+    setSources((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  return (
+    <div>
+      <div className="bg-kira-surface border border-kira-border rounded-md p-4 mb-6">
+        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={handle}
+            onChange={(e) => setHandle(e.target.value)}
+            placeholder="@channel"
+            className="flex-1 bg-kira-surface-2 border border-kira-border rounded px-3 py-2 text-xs font-data text-kira-text placeholder:text-kira-text-dim focus:outline-none focus:border-kira-accent"
+          />
+          <button
+            type="submit"
+            disabled={submitting || (limit !== Infinity && sources.length >= limit)}
+            className="bg-kira-accent text-kira-bg rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            Add
+          </button>
+        </form>
+        {formError && <p className="text-xs text-kira-red mt-2">{formError}</p>}
+        <p className="text-xs text-kira-text-dim mt-2">
+          {sources.length} of {limit === Infinity ? "unlimited" : limit} personal sources used ({tier})
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="text-kira-text-muted text-sm">Loading...</div>
+      ) : sources.length === 0 ? (
+        <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center">
+          <p className="text-kira-text text-sm">No personal channels added yet.</p>
+          <p className="text-kira-text-muted text-xs mt-1">Add a Telegram channel handle above to track it here.</p>
+        </div>
+      ) : (
+        <div className="bg-kira-surface border border-kira-border rounded-md overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-kira-text-muted border-b border-kira-border">
+                <th className="px-4 py-3 font-normal">Channel</th>
+                <th className="px-4 py-3 font-normal">Calls</th>
+                <th className="px-4 py-3 font-normal">Last Call</th>
+                <th className="px-4 py-3 font-normal">Added</th>
+                <th className="px-4 py-3 font-normal"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sources.map((s) => (
+                <tr key={s.id} className="border-b border-kira-border last:border-0">
+                  <td className="px-4 py-3 text-kira-text">{s.displayName ?? `@${s.channelIdentifier}`}</td>
+                  <td className="px-4 py-3 font-data text-xs text-kira-text-muted">{s.totalCalls}</td>
+                  <td className="px-4 py-3 text-kira-text-dim text-xs">
+                    {s.lastCallAt ? new Date(s.lastCallAt).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-kira-text-dim text-xs">{new Date(s.addedAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => void handleRemove(s.id)}
+                      className="text-kira-red text-xs hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function KolPage() {
-  const [tab, setTab] = useState<"leaderboard" | "history">("leaderboard");
+  const { me } = useAppData();
+  const [tab, setTab] = useState<"leaderboard" | "history" | "mysources">("leaderboard");
   const [sources, setSources] = useState<KolSourceStats[]>([]);
   const [warmingUp, setWarmingUp] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -266,9 +399,17 @@ export default function KolPage() {
         >
           Call History
         </button>
+        <button
+          onClick={() => setTab("mysources")}
+          className={`text-xs px-3 py-1.5 rounded border ${tab === "mysources" ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"}`}
+        >
+          My Sources
+        </button>
       </div>
 
-      {loading ? (
+      {tab === "mysources" ? (
+        <MySources tier={me?.tier ?? "scout"} />
+      ) : loading ? (
         <div className="text-kira-text-muted text-sm">Loading...</div>
       ) : warmingUp ? (
         <WarmingUp />

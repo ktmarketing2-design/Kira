@@ -43,6 +43,15 @@ function truncateAddress(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
+// Read-only, no requireDdQuota: the watchlist page shows price/rug/volume score for many
+// tokens at once "from existing DD cache where available, otherwise show dashes" (Sprint 8 Part
+// 2 spec) -- routing that through /:address/dd would burn a Scout's 10/day DD quota just by
+// opening the page, since that route's quota middleware runs before its own cache check.
+router.get("/:address/dd-cached", async (req, res) => {
+  const cached = await redis.get(`ddcard:${req.params.address}`);
+  res.json({ card: cached ? JSON.parse(cached) : null });
+});
+
 router.get("/:address/dd", requireDdQuota, async (req, res) => {
   const { address } = req.params;
 

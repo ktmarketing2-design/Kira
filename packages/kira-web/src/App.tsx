@@ -12,6 +12,7 @@ import TokenPage from "./token/TokenPage.js";
 import ChartSharePage from "./token/ChartSharePage.js";
 import KolPage from "./kol/KolPage.js";
 import DiscoverPage from "./discover/DiscoverPage.js";
+import WatchlistPage from "./watchlist/WatchlistPage.js";
 import PnlPage from "./pnl/PnlPage.js";
 import SettingsPage from "./settings/SettingsPage.js";
 import UpgradePage from "./settings/UpgradePage.js";
@@ -40,6 +41,7 @@ export default function App() {
       <Route path="/token/:address" element={<Protected><TokenPage /></Protected>} />
       <Route path="/kol" element={<Protected><KolPage /></Protected>} />
       <Route path="/discover" element={<Protected><DiscoverPage /></Protected>} />
+      <Route path="/watchlist" element={<Protected><WatchlistPage /></Protected>} />
       <Route path="/pnl" element={<Protected><PnlPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
       <Route path="/upgrade" element={<Protected><UpgradePage /></Protected>} />

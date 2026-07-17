@@ -65,3 +65,17 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--color-kira-border) transparent;
 }
+
+/* Trending ticker: continuous right-to-left scroll, paused on hover. Content is duplicated once
+   in the component so the loop has no visible seam (the 50% translate lines the copy up exactly
+   where the original started). */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.kira-ticker-track {
+  animation: ticker-scroll 60s linear infinite;
+}
+.kira-ticker-track:hover {
+  animation-play-state: paused;
+}

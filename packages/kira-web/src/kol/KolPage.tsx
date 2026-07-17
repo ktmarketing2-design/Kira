@@ -18,6 +18,7 @@ interface KolSourceStats {
 interface KolCall {
   id: string;
   sourceId: string;
+  sourceType: "telegram" | "gmgn_kol";
   tokenAddress: string;
   calledAt: string;
   priceAtCall: number | null;
@@ -97,6 +98,7 @@ function CallHistory({ sources }: { sources: KolSourceStats[] }) {
   const [calls, setCalls] = useState<KolCall[]>([]);
   const [loading, setLoading] = useState(true);
   const [sourceFilter, setSourceFilter] = useState("");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<"" | "telegram" | "gmgn_kol">("");
   const [minReturn, setMinReturn] = useState("");
   const [sortKey, setSortKey] = useState<keyof KolCall>("calledAt");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -105,15 +107,17 @@ function CallHistory({ sources }: { sources: KolSourceStats[] }) {
     setLoading(true);
     const params = new URLSearchParams();
     if (sourceFilter) params.set("source", sourceFilter);
+    if (sourceTypeFilter) params.set("sourceType", sourceTypeFilter);
     if (minReturn) params.set("minReturn", minReturn);
     apiRequest<{ calls: KolCall[] }>("GET", `/kol/calls?${params.toString()}`)
       .then((res) => setCalls(res.calls))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [sourceFilter, minReturn]);
+  useEffect(load, [sourceFilter, sourceTypeFilter, minReturn]);
 
-  const sourceName = (id: string) => sources.find((s) => s.id === id)?.displayName ?? "Unknown";
+  const sourceName = (call: KolCall) =>
+    call.sourceType === "gmgn_kol" ? "GMGN KOL" : sources.find((s) => s.id === call.sourceId)?.displayName ?? "Unknown";
 
   function sortBy(key: keyof KolCall) {
     if (sortKey === key) setSortDir((d) => (d === 1 ? -1 : 1));
@@ -143,6 +147,19 @@ function CallHistory({ sources }: { sources: KolSourceStats[] }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="flex gap-1">
+          {(["", "telegram", "gmgn_kol"] as const).map((v) => (
+            <button
+              key={v || "all"}
+              onClick={() => setSourceTypeFilter(v)}
+              className={`text-xs px-2 py-1 rounded border ${
+                sourceTypeFilter === v ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+              }`}
+            >
+              {v === "" ? "All" : v === "telegram" ? "Telegram" : "GMGN"}
+            </button>
+          ))}
+        </div>
         <select
           value={sourceFilter}
           onChange={(e) => setSourceFilter(e.target.value)}
@@ -192,7 +209,7 @@ function CallHistory({ sources }: { sources: KolSourceStats[] }) {
             <tbody>
               {sorted.map((c) => (
                 <tr key={c.id} className="border-b border-kira-border last:border-0">
-                  <td className="px-4 py-3 text-kira-text-muted">{sourceName(c.sourceId)}</td>
+                  <td className="px-4 py-3 text-kira-text-muted">{sourceName(c)}</td>
                   <td className="px-4 py-3 font-data text-xs text-kira-text">{truncate(c.tokenAddress)}</td>
                   <td className="px-4 py-3 text-kira-text-dim text-xs">{new Date(c.calledAt).toLocaleString()}</td>
                   <td className="px-4 py-3 font-data text-xs text-kira-text-muted">

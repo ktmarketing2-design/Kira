@@ -24,6 +24,7 @@ import signalFiltersRouter from "./routes/signalFilters.js";
 import kolRouter from "./routes/kol.js";
 import pnlRouter from "./routes/pnl.js";
 import smartMoneyRouter from "./routes/smartMoney.js";
+import trendingRouter from "./routes/trending.js";
 
 const app = express();
 const PORT = Number(process.env.KIRA_API_PORT || 4020);
@@ -81,6 +82,7 @@ app.use("/signal-filters", signalFiltersRouter);
 app.use("/kol", kolRouter);
 app.use("/pnl", pnlRouter);
 app.use("/smart-money", smartMoneyRouter);
+app.use("/trending", trendingRouter);
 
 app.listen(PORT, () => {
   console.log(`[kira-api] listening on port ${PORT}`);

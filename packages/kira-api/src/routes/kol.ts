@@ -20,6 +20,7 @@ interface KolCallRow {
   price_4h: number | null;
   price_24h: number | null;
   price_7d: number | null;
+  source_type: "telegram" | "gmgn_kol";
 }
 
 function returnPct(entry: number | null, exit: number | null): number | null {
@@ -104,6 +105,7 @@ router.get("/calls", async (req, res) => {
   const dateFrom = typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined;
   const dateTo = typeof req.query.dateTo === "string" ? req.query.dateTo : undefined;
   const minReturn = typeof req.query.minReturn === "string" ? Number(req.query.minReturn) : undefined;
+  const sourceType = typeof req.query.sourceType === "string" ? req.query.sourceType : undefined;
 
   let query = supabase
     .from("kira_kol_calls")
@@ -115,6 +117,7 @@ router.get("/calls", async (req, res) => {
   if (sourceId) query = query.eq("source_id", sourceId);
   if (dateFrom) query = query.gte("called_at", dateFrom);
   if (dateTo) query = query.lte("called_at", dateTo);
+  if (sourceType === "telegram" || sourceType === "gmgn_kol") query = query.eq("source_type", sourceType);
 
   const { data, error } = await query;
   if (error) {
@@ -137,6 +140,7 @@ router.get("/calls", async (req, res) => {
     calls: calls.map((c) => ({
       id: c.id,
       sourceId: c.source_id,
+      sourceType: c.source_type,
       tokenAddress: c.token_address,
       calledAt: c.called_at,
       priceAtCall: c.price_at_call,
@@ -175,6 +179,7 @@ router.get("/sources/:id/calls", async (req, res) => {
     calls: calls.map((c) => ({
       id: c.id,
       sourceId: c.source_id,
+      sourceType: c.source_type,
       tokenAddress: c.token_address,
       calledAt: c.called_at,
       priceAtCall: c.price_at_call,

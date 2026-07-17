@@ -378,3 +378,131 @@ export async function getEnrichment(tokenAddress: string): Promise<GmgnEnrichmen
     devHoldingPct,
   };
 }
+
+// ============================================================================
+// Trending + KOL/Smart Money trade tracking (Sprint 7 Parts 3 & 4)
+// ============================================================================
+
+const trendingTokenSchema = z.object({
+  address: z.string(),
+  symbol: z.string().nullable().optional(),
+  price: z.number().nullable().optional(),
+  price_change_percent5m: z.number().nullable().optional(),
+});
+const trendingResponseSchema = z.object({ data: z.object({ rank: z.array(trendingTokenSchema) }) });
+
+export interface TrendingToken {
+  address: string;
+  symbol: string | null;
+  priceUsd: number | null;
+  priceChange5mPct: number | null;
+}
+
+/** Top trending tokens by volume, 5m window. */
+export async function getTrending(limit = 20): Promise<TrendingToken[]> {
+  try {
+    const json = await runCli([
+      "market",
+      "trending",
+      "--chain",
+      "sol",
+      "--interval",
+      "5m",
+      "--order-by",
+      "volume",
+      "--direction",
+      "desc",
+      "--limit",
+      String(Math.min(limit, 100)),
+    ]);
+    const parsed = trendingResponseSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new KiraClientError(SOURCE, `trending response validation failed: ${parsed.error.message}`);
+    }
+    return parsed.data.data.rank.map((t) => ({
+      address: t.address,
+      symbol: t.symbol ?? null,
+      priceUsd: t.price ?? null,
+      priceChange5mPct: t.price_change_percent5m ?? null,
+    }));
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}
+
+const tradeRecordSchema = z.object({
+  transaction_hash: z.string(),
+  maker: z.string(),
+  base_address: z.string(),
+  side: z.enum(["buy", "sell"]),
+  amount_usd: z.union([z.string(), z.number()]).nullable().optional(),
+  price_usd: z.union([z.string(), z.number()]).nullable().optional(),
+  timestamp: z.number(),
+  base_token: z.object({ symbol: z.string().nullable().optional() }).optional(),
+  maker_info: z
+    .object({
+      twitter_username: z.string().nullable().optional(),
+      tags: z.array(z.string()).optional(),
+    })
+    .optional(),
+});
+const tradeRecordListSchema = z.object({ list: z.array(tradeRecordSchema) });
+
+export interface GmgnTradeRecord {
+  transactionHash: string;
+  wallet: string;
+  tokenAddress: string;
+  tokenSymbol: string | null;
+  side: "buy" | "sell";
+  usdValue: number | null;
+  priceUsd: number | null;
+  timestamp: number; // unix seconds
+  twitterUsername: string | null;
+  tags: string[];
+}
+
+function mapTradeRecord(raw: z.infer<typeof tradeRecordSchema>): GmgnTradeRecord {
+  return {
+    transactionHash: raw.transaction_hash,
+    wallet: raw.maker,
+    tokenAddress: raw.base_address,
+    tokenSymbol: raw.base_token?.symbol ?? null,
+    side: raw.side,
+    usdValue: toNumber(raw.amount_usd),
+    priceUsd: toNumber(raw.price_usd),
+    timestamp: raw.timestamp,
+    twitterUsername: raw.maker_info?.twitter_username ?? null,
+    tags: raw.maker_info?.tags ?? [],
+  };
+}
+
+/** Recent KOL trades (`gmgn-cli track kol`). */
+export async function getKolTrades(limit = 100): Promise<GmgnTradeRecord[]> {
+  try {
+    const json = await runCli(["track", "kol", "--chain", "sol", "--limit", String(Math.min(limit, 200))]);
+    const parsed = tradeRecordListSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new KiraClientError(SOURCE, `kol trades response validation failed: ${parsed.error.message}`);
+    }
+    return parsed.data.list.map(mapTradeRecord);
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}
+
+/** Recent Smart Money trades (`gmgn-cli track smartmoney`). */
+export async function getSmartMoneyTrades(limit = 100): Promise<GmgnTradeRecord[]> {
+  try {
+    const json = await runCli(["track", "smartmoney", "--chain", "sol", "--limit", String(Math.min(limit, 200))]);
+    const parsed = tradeRecordListSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new KiraClientError(SOURCE, `smartmoney trades response validation failed: ${parsed.error.message}`);
+    }
+    return parsed.data.list.map(mapTradeRecord);
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}

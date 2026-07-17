@@ -14,5 +14,5 @@ export * as gmgnApi from "./gmgn-api.js";
 export { KiraClientError } from "./errors.js";
 export type { HeliusConfig } from "./helius.js";
 export type { BirdeyeWallet } from "./birdeye.js";
-export type { GmgnTrader, GmgnWalletPnl, GmgnEnrichment } from "./gmgn-api.js";
+export type { GmgnTrader, GmgnWalletPnl, GmgnEnrichment, TrendingToken, GmgnTradeRecord } from "./gmgn-api.js";
 export type { SocialInsights, TopInfluencer, InfluencerSentiment } from "./lunarcrush.js";

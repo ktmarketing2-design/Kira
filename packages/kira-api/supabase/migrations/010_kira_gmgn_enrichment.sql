@@ -19,3 +19,9 @@ alter table kira_token_snapshots
   add column if not exists dev_holding_pct numeric,
   add column if not exists rug_ratio numeric,
   add column if not exists wash_trade boolean;
+
+-- Sprint 7 Part 4: distinguishes Telegram-ingested KOL calls from GMGN track-API-sourced ones.
+alter table kira_kol_calls
+  add column if not exists source_type text not null default 'telegram';
+-- 'telegram' = from MTProto ingestion (kolIngestWorker.ts)
+-- 'gmgn_kol'  = from GMGN track kol API (kolGmgnSyncWorker.ts)

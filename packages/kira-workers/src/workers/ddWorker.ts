@@ -10,10 +10,12 @@ import {
   raydiumLaunchlab,
   geckoterminal,
   lunarcrush,
+  gmgnApi,
   detectLaunchpad,
   type HeliusConfig,
   type Launchpad,
   type SocialInsights,
+  type GmgnEnrichment,
 } from "@ceronix/kira-shared";
 import { bullConnection } from "../lib/redis.js";
 import { redis } from "../lib/redis.js";
@@ -52,6 +54,7 @@ export interface DdCard {
   };
   topHolders: Array<{ address: string; pct: number | null; isDev: boolean }>;
   smartMoney: { walletsEntered24h: number; netFlowUsd: number } | null;
+  deepIntel: GmgnEnrichment | null;
   safety: {
     mintAuthorityRevoked: boolean;
     freezeAuthorityRevoked: boolean;
@@ -330,6 +333,29 @@ function getSocialInsightsWithTimeout(symbol: string): Promise<SocialInsights | 
   ]);
 }
 
+// GMGN's Deep Intel enrichment needs up to 9 sequential gmgn-cli calls under the client's own
+// internal 1/sec rate limiter (concurrent bursts were verified live to trigger GMGN's rate limit
+// and a temporary IP ban, so the client serializes everything itself -- see gmgn-api.ts). That's
+// a real ~9s minimum on a true cold call, gated separately from the rest of the ddcard cache so a
+// second cold DD for the same token within the cache window reuses this instead of re-paying it.
+const DEEP_INTEL_TIMEOUT_MS = 12_000;
+
+async function getGmgnEnrichmentCached(tokenAddress: string): Promise<GmgnEnrichment | null> {
+  const cacheKey = `gmgn:enrichment:${tokenAddress}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached) as GmgnEnrichment;
+
+  const result = await Promise.race([
+    gmgnApi.getEnrichment(tokenAddress),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), DEEP_INTEL_TIMEOUT_MS)),
+  ]);
+
+  if (result) {
+    await redis.set(cacheKey, JSON.stringify(result), "EX", CACHE_TTL_SECONDS);
+  }
+  return result;
+}
+
 function defaultVerdictText(rugScore: number, volume: VolumeOutput | null, hasMarketData: boolean): string {
   const safety = rugScore >= 70 ? "looks relatively safe" : rugScore >= 40 ? "has some red flags" : "looks risky";
   const volumePart = volume ? ` Volume looks ${volume.verdict.replace("_", " ")}.` : "";
@@ -346,14 +372,16 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
     return JSON.parse(cached) as DdCard;
   }
 
-  const [report, security, holders, totalSupply, { data: market, launchpad }, socialSignals] = await Promise.all([
-    rugcheck.getTokenReport(tokenAddress),
-    goplus.getTokenSecurity(CHAIN_ID, tokenAddress),
-    helius.getTokenLargestAccounts(heliusConfig, tokenAddress),
-    helius.getTokenSupply(heliusConfig, tokenAddress),
-    resolveMarketData(tokenAddress),
-    resolveSocialSignals(tokenAddress),
-  ]);
+  const [report, security, holders, totalSupply, { data: market, launchpad }, socialSignals, gmgnEnrichment] =
+    await Promise.all([
+      rugcheck.getTokenReport(tokenAddress),
+      goplus.getTokenSecurity(CHAIN_ID, tokenAddress),
+      helius.getTokenLargestAccounts(heliusConfig, tokenAddress),
+      helius.getTokenSupply(heliusConfig, tokenAddress),
+      resolveMarketData(tokenAddress),
+      resolveSocialSignals(tokenAddress),
+      getGmgnEnrichmentCached(tokenAddress),
+    ]);
 
   const deployerAddress = report?.deployerAddress ?? null;
   // Speed optimization (Sprint 5 Part 5): this used to also fetch the deployer's last 20 txs
@@ -481,6 +509,7 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
     },
     topHolders: topHolders,
     smartMoney,
+    deepIntel: gmgnEnrichment,
     safety: {
       mintAuthorityRevoked: report?.mintAuthorityRevoked ?? false,
       freezeAuthorityRevoked: report?.freezeAuthorityRevoked ?? false,
@@ -526,6 +555,17 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
     social_top_influencers: social?.topInfluencers ?? null,
     social_kol_mentions: socialSignals.kolMentions,
     social_trending: socialSignals.trending,
+    // GMGN Deep Intel (Sprint 7 Part 1). wash_trade and rug_ratio are NOT populated -- neither
+    // field exists anywhere in GMGN's token info or security responses (checked both live
+    // against BONK before building this), so migration 010's columns for them stay null rather
+    // than being filled with a fabricated value.
+    smart_degen_count: gmgnEnrichment?.smartDegenCount ?? null,
+    renowned_wallets: gmgnEnrichment?.renownedWallets ?? null,
+    rat_trader_rate: gmgnEnrichment?.ratTraderSamplePct ?? null,
+    bundler_rate: gmgnEnrichment?.bundlerSamplePct ?? null,
+    sniper_count: gmgnEnrichment?.sniperCount ?? null,
+    fresh_wallet_rate: gmgnEnrichment?.freshWalletSamplePct ?? null,
+    dev_holding_pct: gmgnEnrichment?.devHoldingPct ?? null,
   });
 
   if (error) {

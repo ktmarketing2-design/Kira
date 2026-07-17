@@ -131,6 +131,19 @@ export interface DdCard {
   };
   topHolders: Array<{ address: string; pct: number | null; isDev: boolean }>;
   smartMoney: { walletsEntered24h: number; netFlowUsd: number } | null;
+  deepIntel: {
+    smartDegenCount: number | null;
+    smartDegenCountCapped: boolean;
+    renownedWallets: number | null;
+    renownedWalletsCapped: boolean;
+    sniperCount: number | null;
+    sniperCountCapped: boolean;
+    ratTraderSamplePct: number | null;
+    bundlerSamplePct: number | null;
+    freshWalletSamplePct: number | null;
+    devHoldingPct: number | null;
+    top10HolderPct: number | null;
+  } | null;
   safety: {
     mintAuthorityRevoked: boolean;
     freezeAuthorityRevoked: boolean;

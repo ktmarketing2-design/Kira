@@ -15,6 +15,19 @@ interface SocialSignals {
   trending: boolean;
 }
 
+interface DeepIntel {
+  smartDegenCount: number | null;
+  smartDegenCountCapped: boolean;
+  renownedWallets: number | null;
+  renownedWalletsCapped: boolean;
+  sniperCount: number | null;
+  sniperCountCapped: boolean;
+  ratTraderSamplePct: number | null;
+  bundlerSamplePct: number | null;
+  freshWalletSamplePct: number | null;
+  devHoldingPct: number | null;
+}
+
 interface DdCardLike {
   tokenAddress: string;
   symbol: string | null;
@@ -29,6 +42,7 @@ interface DdCardLike {
   };
   volume: { score: number; verdict: string } | null;
   socialSignals: SocialSignals;
+  deepIntel?: DeepIntel | null;
   verdictText: string;
 }
 
@@ -55,6 +69,60 @@ function formatSocialSignals(signals: SocialSignals): string {
   ].join("\n");
 }
 
+/** GMGN-derived Deep Intel section (Sprint 7 Part 1). Counts that hit the 100-holder sample cap
+ * are shown as "100+" rather than a bare 100, since GMGN's holders endpoint has no total-count
+ * field beyond the returned (capped) list -- a token with more than 100 matching holders looks
+ * identical to one with exactly 100 otherwise. The rat_trader/bundler/fresh_wallet percentages
+ * are share of the (also capped-at-100) sampled holder list, not share of volume or of the
+ * token's true total holder count -- GMGN's holders endpoint has no aggregate volume-share field
+ * for a tag subset, so this is the most honest thing to compute from what's actually available. */
+function formatCount(n: number | null, capped: boolean): string {
+  if (n == null) return "—";
+  return capped ? `${n}+` : String(n);
+}
+
+function formatDeepIntel(intel: DeepIntel): string {
+  const smartDegenOk = (intel.smartDegenCount ?? 0) > 3;
+  const renownedOk = (intel.renownedWallets ?? 0) > 2;
+  const ratTraderBad = (intel.ratTraderSamplePct ?? 0) > 30;
+  const bundlerBad = (intel.bundlerSamplePct ?? 0) > 20;
+
+  const lines = ["🔬 *Deep Intel*"];
+  lines.push(
+    escapeMarkdownV2(
+      `${smartDegenOk ? "🟢" : "👥"} Smart Money: ${formatCount(intel.smartDegenCount, intel.smartDegenCountCapped)} wallets in`,
+    ),
+  );
+  lines.push(
+    escapeMarkdownV2(
+      `${renownedOk ? "🟢" : "🎤"} KOL holders: ${formatCount(intel.renownedWallets, intel.renownedWalletsCapped)}`,
+    ),
+  );
+  if (intel.ratTraderSamplePct != null) {
+    lines.push(
+      escapeMarkdownV2(
+        `${ratTraderBad ? "🔴" : "🐀"} Rat traders: ${intel.ratTraderSamplePct.toFixed(0)}% of sampled holders`,
+      ),
+    );
+  }
+  if (intel.bundlerSamplePct != null) {
+    lines.push(
+      escapeMarkdownV2(
+        `${bundlerBad ? "🔴" : "🤖"} Bundler bots: ${intel.bundlerSamplePct.toFixed(0)}% of sampled holders`,
+      ),
+    );
+  }
+  lines.push(escapeMarkdownV2(`🎯 Snipers at launch: ${formatCount(intel.sniperCount, intel.sniperCountCapped)}`));
+  if (intel.devHoldingPct != null) {
+    lines.push(escapeMarkdownV2(`👨‍💻 Dev holding: ${intel.devHoldingPct.toFixed(1)}%`));
+  }
+  if (intel.freshWalletSamplePct != null) {
+    lines.push(escapeMarkdownV2(`🆕 Fresh wallets: ${intel.freshWalletSamplePct.toFixed(0)}% of sampled holders`));
+  }
+
+  return lines.join("\n");
+}
+
 export function formatDdCard(card: DdCardLike): string {
   const symbol = card.symbol ?? "Token";
   const lines = [
@@ -78,6 +146,10 @@ export function formatDdCard(card: DdCardLike): string {
 
   if (card.volume) {
     lines.push(`📊 *Volume Score: ${card.volume.score}/100 \\(${escapeMarkdownV2(card.volume.verdict)}\\)*`, "");
+  }
+
+  if (card.deepIntel) {
+    lines.push(formatDeepIntel(card.deepIntel), "");
   }
 
   if (card.market.fdvUsd != null) lines.push(escapeMarkdownV2(`FDV: $${Math.round(card.market.fdvUsd).toLocaleString("en-US")}`));

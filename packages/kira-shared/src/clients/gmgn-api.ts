@@ -1,10 +1,20 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
+import { RateLimiter } from "./rateLimiter.js";
 import { KiraClientError, logClientFailure } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
 const SOURCE = "gmgn-api";
+
+// Verified live: firing gmgn-cli calls concurrently (e.g. the 7 parallel holder-tag queries in
+// getEnrichment below) triggers GMGN's rate limit within seconds -- "IP rate limit exceeded",
+// escalating to "IP is temporarily banned... repeated requests can extend the ban by 5s up to 5
+// minutes" on the next call after that. This limiter serializes every gmgn-cli invocation from
+// this process, regardless of how many call sites fire Promise.all concurrently, since it lives
+// inside runCli() itself rather than at each call site. 1/sec is conservative -- GMGN's docs
+// don't publish an exact limit, this errs toward never re-triggering the ban.
+const limiter = new RateLimiter(1, 1_000);
 
 /**
  * GMGN's real integration path is a CLI tool (`gmgn-cli`, published on npm, verified against the
@@ -18,6 +28,7 @@ const SOURCE = "gmgn-api";
  * that's already done, it does not manage the keypair/config itself.
  */
 async function runCli(args: string[]): Promise<unknown> {
+  await limiter.acquire();
   const { stdout } = await execFileAsync("gmgn-cli", [...args, "--raw"], {
     timeout: 30_000,
     maxBuffer: 10 * 1024 * 1024,
@@ -160,4 +171,210 @@ export async function getWalletPnl(walletAddress: string, period: "7d" | "30d"):
     logClientFailure(SOURCE, err);
     return null;
   }
+}
+
+// ============================================================================
+// DD card enrichment (Sprint 7 Part 1)
+// ============================================================================
+
+const tokenInfoSchema = z.object({
+  holder_count: z.number().nullable().optional(),
+  liquidity: z.union([z.string(), z.number()]).nullable().optional(),
+  dev: z.object({ top_10_holder_rate: z.union([z.string(), z.number()]).nullable().optional() }).optional(),
+  price: z.object({ volume_24h: z.union([z.string(), z.number()]).nullable().optional() }).optional(),
+});
+
+const tokenSecuritySchema = z.object({
+  open_source: z.number().nullable().optional(),
+  honeypot: z.number().nullable().optional(),
+  renounced_mint: z.boolean().nullable().optional(),
+  renounced_freeze_account: z.boolean().nullable().optional(),
+  buy_tax: z.union([z.string(), z.number()]).nullable().optional(),
+  sell_tax: z.union([z.string(), z.number()]).nullable().optional(),
+});
+
+/** GMGN's tags observed live: smart_degen / renowned / fresh_wallet / dev / sniper / rat_trader /
+ * bundler / transfer_in / dex_bot / bluechip_owner. token holders --tag X takes exactly one tag
+ * per call, there is no multi-tag OR — this is why enrichment needs several parallel calls, not
+ * one. --limit caps at 100 with no total-count field anywhere in the response envelope (verified
+ * live, top-level keys are just {list}), so a count that lands exactly on the limit is a floor,
+ * not an exact figure (observed live on BONK, an atypically large/old token: smart_degen,
+ * renowned, sniper, rat_trader, bundler, and fresh_wallet all saturated at exactly 100; only
+ * `dev` returned a real, uncapped count of 0, consistent with BONK's creator_token_status
+ * "creator_close" meaning the dev fully exited). Smaller/newer DD-target tokens should return
+ * real, uncapped counts most of the time.
+ */
+async function countHoldersByTag(tokenAddress: string, tag: string): Promise<{ count: number; capped: boolean }> {
+  const holders = await getSmartMoneyHoldersInternal(tokenAddress, tag, 100);
+  return { count: holders.length, capped: holders.length >= 100 };
+}
+
+async function getSmartMoneyHoldersInternal(tokenAddress: string, tag: string, limit: number): Promise<GmgnTrader[]> {
+  try {
+    const json = await runCli([
+      "token",
+      "holders",
+      "--chain",
+      "sol",
+      "--address",
+      tokenAddress,
+      "--limit",
+      String(limit),
+      "--tag",
+      tag,
+    ]);
+    const parsed = tradersListSchema.safeParse(json);
+    if (!parsed.success) return [];
+    return parsed.data.list.map(mapTrader).filter((t): t is GmgnTrader => t !== null);
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}
+
+const holderAmountSchema = z.object({
+  amount_percentage: z.number().nullable().optional(),
+});
+const holderAmountListSchema = z.object({ list: z.array(holderAmountSchema) });
+
+/** Sum of amount_percentage (already a 0-1 fraction of supply per holder) across dev-tagged
+ * holders. Separate from getSmartMoneyHoldersInternal/GmgnTrader since dev holding needs the raw
+ * supply-share field that mapTrader doesn't carry (it's generic-purpose, used for trader/smart-
+ * money discovery elsewhere, not holding-percentage math). */
+async function getDevHoldingPct(tokenAddress: string): Promise<number | null> {
+  try {
+    const json = await runCli([
+      "token",
+      "holders",
+      "--chain",
+      "sol",
+      "--address",
+      tokenAddress,
+      "--limit",
+      "100",
+      "--tag",
+      "dev",
+    ]);
+    const parsed = holderAmountListSchema.safeParse(json);
+    if (!parsed.success) return null;
+    if (parsed.data.list.length === 0) return 0;
+    const total = parsed.data.list.reduce((sum, h) => sum + (h.amount_percentage ?? 0), 0);
+    return total * 100;
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return null;
+  }
+}
+
+function toPct(v: string | number | null | undefined): number | null {
+  const n = toNumber(v);
+  return n == null ? null : n * 100;
+}
+
+export interface GmgnEnrichment {
+  holderCount: number | null;
+  liquidityUsd: number | null;
+  volume24hUsd: number | null;
+  top10HolderPct: number | null;
+  isOpenSource: boolean | null;
+  isRenounced: boolean | null; // both mint and freeze authority renounced
+  isHoneypot: boolean | null;
+  buyTaxPct: number | null;
+  sellTaxPct: number | null;
+  smartDegenCount: number | null;
+  smartDegenCountCapped: boolean;
+  renownedWallets: number | null;
+  renownedWalletsCapped: boolean;
+  sniperCount: number | null;
+  sniperCountCapped: boolean;
+  // Percent of the (capped-at-100) sampled holder list carrying this tag, NOT percent of total
+  // volume/holders — GMGN's holders endpoint has no aggregate volume-share field for a tag
+  // subset, only per-holder buy_volume_cur/sell_volume_cur, and summing those against a total
+  // that itself may be sampled/capped would overstate precision this data doesn't actually have.
+  ratTraderSamplePct: number | null;
+  bundlerSamplePct: number | null;
+  freshWalletSamplePct: number | null;
+  devHoldingPct: number | null;
+}
+
+/** All DD card "Deep Intel" data in one call: token info, security, and 7 parallel
+ * holder-tag queries (smart_degen, renowned, sniper, rat_trader, bundler, fresh_wallet, dev).
+ * Returns null only if the token info call itself fails; partial holder-tag failures degrade
+ * individual fields to null rather than failing the whole card. */
+export async function getEnrichment(tokenAddress: string): Promise<GmgnEnrichment | null> {
+  const infoJson = await (async () => {
+    try {
+      return await runCli(["token", "info", "--chain", "sol", "--address", tokenAddress]);
+    } catch (err) {
+      logClientFailure(SOURCE, err);
+      return null;
+    }
+  })();
+  if (infoJson === null) return null;
+
+  const infoParsed = tokenInfoSchema.safeParse(infoJson);
+  if (!infoParsed.success) {
+    logClientFailure(SOURCE, new KiraClientError(SOURCE, `token info validation failed: ${infoParsed.error.message}`));
+    return null;
+  }
+  const info = infoParsed.data;
+
+  const [
+    securityJson,
+    smartDegen,
+    renowned,
+    sniper,
+    ratTrader,
+    bundler,
+    freshWallet,
+    devHoldingPct,
+  ] = await Promise.all([
+    (async () => {
+      try {
+        return await runCli(["token", "security", "--chain", "sol", "--address", tokenAddress]);
+      } catch (err) {
+        logClientFailure(SOURCE, err);
+        return null;
+      }
+    })(),
+    countHoldersByTag(tokenAddress, "smart_degen"),
+    countHoldersByTag(tokenAddress, "renowned"),
+    countHoldersByTag(tokenAddress, "sniper"),
+    getSmartMoneyHoldersInternal(tokenAddress, "rat_trader", 100),
+    getSmartMoneyHoldersInternal(tokenAddress, "bundler", 100),
+    getSmartMoneyHoldersInternal(tokenAddress, "fresh_wallet", 100),
+    getDevHoldingPct(tokenAddress),
+  ]);
+
+  const security = securityJson ? tokenSecuritySchema.safeParse(securityJson) : null;
+  const sec = security?.success ? security.data : null;
+
+  // Sample size for the *Pct fields above is the smart_degen sample (100 or holderCount, whichever
+  // is smaller) purely as a stand-in denominator since GMGN gives no true total; approximate only.
+  const sampleDenominator = Math.min(info.holder_count ?? 100, 100) || 100;
+
+  return {
+    holderCount: info.holder_count ?? null,
+    liquidityUsd: toNumber(info.liquidity),
+    volume24hUsd: toNumber(info.price?.volume_24h),
+    top10HolderPct: toPct(info.dev?.top_10_holder_rate),
+    isOpenSource: sec?.open_source == null ? null : sec.open_source === 1,
+    isRenounced:
+      sec?.renounced_mint == null || sec?.renounced_freeze_account == null
+        ? null
+        : sec.renounced_mint && sec.renounced_freeze_account,
+    isHoneypot: sec?.honeypot == null ? null : sec.honeypot === 1,
+    buyTaxPct: sec ? toNumber(sec.buy_tax) : null,
+    sellTaxPct: sec ? toNumber(sec.sell_tax) : null,
+    smartDegenCount: smartDegen.count,
+    smartDegenCountCapped: smartDegen.capped,
+    renownedWallets: renowned.count,
+    renownedWalletsCapped: renowned.capped,
+    sniperCount: sniper.count,
+    sniperCountCapped: sniper.capped,
+    ratTraderSamplePct: (ratTrader.length / sampleDenominator) * 100,
+    bundlerSamplePct: (bundler.length / sampleDenominator) * 100,
+    freshWalletSamplePct: (freshWallet.length / sampleDenominator) * 100,
+    devHoldingPct,
+  };
 }

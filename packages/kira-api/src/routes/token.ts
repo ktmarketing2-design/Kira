@@ -8,7 +8,12 @@ import { helius, jupiter, geckoterminal, type HeliusConfig } from "@ceronix/kira
 
 const router = Router();
 
-const DD_JOB_TIMEOUT_MS = 15_000;
+// Raised from 15s (Sprint 7): cold DD generation now includes GMGN Deep Intel enrichment,
+// which needs up to ~9 sequential gmgn-cli calls under that client'''s own 1/sec internal rate
+// limiter. Verified live: a real cold BONK DD took 21s end to end with GMGN enrichment included,
+// which the old 15s timeout would have hard-failed as a 504 even though the underlying BullMQ
+// job succeeded and populated the cache.
+const DD_JOB_TIMEOUT_MS = 30_000;
 const VOLUME_JOB_TIMEOUT_MS = 15_000;
 const TX_HISTORY_LOOKBACK = 60; // fetch more than 20 since not every parsed tx yields a transfer for this mint
 const TX_RESULT_LIMIT = 20;

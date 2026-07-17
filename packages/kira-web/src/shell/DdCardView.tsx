@@ -85,6 +85,40 @@ export default function DdCardView({ card }: { card: DdCard }) {
             <li>DexScreener trending: {card.socialSignals.trending ? "Yes" : "No"}</li>
           </ul>
         </div>
+
+        {card.deepIntel && (
+          <div>
+            <div className="text-xs uppercase tracking-wide text-kira-text-muted mb-2">Deep Intel (GMGN)</div>
+            <ul className="space-y-1 text-xs text-kira-text-muted">
+              <li className={(card.deepIntel.smartDegenCount ?? 0) > 3 ? "text-kira-green" : ""}>
+                Smart Money: {card.deepIntel.smartDegenCount ?? "—"}
+                {card.deepIntel.smartDegenCountCapped ? "+" : ""} wallets
+              </li>
+              <li className={(card.deepIntel.renownedWallets ?? 0) > 2 ? "text-kira-green" : ""}>
+                KOL holders: {card.deepIntel.renownedWallets ?? "—"}
+                {card.deepIntel.renownedWalletsCapped ? "+" : ""}
+              </li>
+              {card.deepIntel.ratTraderSamplePct != null && (
+                <li className={card.deepIntel.ratTraderSamplePct > 30 ? "text-kira-red" : ""}>
+                  Rat traders: {card.deepIntel.ratTraderSamplePct.toFixed(0)}% of sample
+                </li>
+              )}
+              {card.deepIntel.bundlerSamplePct != null && (
+                <li className={card.deepIntel.bundlerSamplePct > 20 ? "text-kira-red" : ""}>
+                  Bundler bots: {card.deepIntel.bundlerSamplePct.toFixed(0)}% of sample
+                </li>
+              )}
+              <li>
+                Snipers: {card.deepIntel.sniperCount ?? "—"}
+                {card.deepIntel.sniperCountCapped ? "+" : ""} at launch
+              </li>
+              {card.deepIntel.devHoldingPct != null && <li>Dev holding: {card.deepIntel.devHoldingPct.toFixed(1)}%</li>}
+              {card.deepIntel.freshWalletSamplePct != null && (
+                <li>Fresh wallets: {card.deepIntel.freshWalletSamplePct.toFixed(0)}% of sample</li>
+              )}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div>

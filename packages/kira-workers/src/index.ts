@@ -23,6 +23,7 @@ import { startSmartWalletRefreshWorker } from "./workers/smartWalletRefreshWorke
 import { startKolGmgnSyncWorker } from "./workers/kolGmgnSyncWorker.js";
 import { startSmartMoneyGmgnSyncWorker } from "./workers/smartMoneyGmgnSyncWorker.js";
 import { startGmgnScanner, registerGmgnScannerCron } from "./workers/gmgnScannerWorker.js";
+import { startDailyBriefWorker } from "./workers/dailyBriefWorker.js";
 import {
   pnlDigestQueue,
   walletPerformanceQueue,
@@ -30,6 +31,7 @@ import {
   smartWalletRefreshQueue,
   kolGmgnSyncQueue,
   smartMoneyGmgnSyncQueue,
+  dailyBriefQueue,
 } from "./lib/queues.js";
 
 const workers = [
@@ -48,6 +50,7 @@ const workers = [
   startKolGmgnSyncWorker(),
   startSmartMoneyGmgnSyncWorker(),
   startGmgnScanner(),
+  startDailyBriefWorker(),
 ];
 
 for (const worker of workers) {
@@ -115,6 +118,12 @@ await smartMoneyGmgnSyncQueue.add(
 // the Helius LP-creation webhook does. That webhook stays live as a backup trigger, not removed.
 await registerGmgnScannerCron();
 
+await dailyBriefQueue.add(
+  "brief",
+  {},
+  { repeat: { pattern: "30 7 * * *", tz: "UTC" }, jobId: "daily-brief-0730" },
+);
+
 console.log(`[kira-workers] ${workers.length} workers started: ${workers.map((w) => w.name).join(", ")}`);
 console.log("[kira-workers] kira-pnl-digest repeatable job registered for 06:00 UTC daily");
 console.log("[kira-workers] kira-wallet-performance repeatable job registered for 02:00 UTC daily");
@@ -123,6 +132,7 @@ console.log("[kira-workers] kira-smart-wallet-refresh repeatable job registered 
 console.log("[kira-workers] kira-kol-gmgn-sync repeatable job registered every 5 minutes");
 console.log("[kira-workers] kira-smartmoney-gmgn-sync repeatable job registered every 5 minutes");
 console.log("[kira-workers] kira-gmgn-scanner repeatable job registered every 60 seconds (trenches + smart-degen signals)");
+console.log("[kira-workers] kira-daily-brief repeatable job registered for 07:30 UTC daily");
 
 // Not a BullMQ worker, a persistent GramJS client listening for new Telegram messages. Runs
 // independently of the job-queue workers above; failures here (bad session, network issue) are

@@ -585,3 +585,80 @@ export async function getWalletProfileRaw(walletAddress: string): Promise<{
       : [],
   };
 }
+
+// ============================================================================
+// Kline (Sprint 7 "kline chart fix" item): not currently wired into any route or
+// SignalsChart.tsx -- that chart deliberately uses the cached GeckoTerminal OHLCV proxy instead
+// (see kira-web/src/token/SignalsChart.tsx's own comment: avoids CORS and keeps GeckoTerminal's
+// rate limit off end users). Swapping the live chart to per-load gmgn-cli calls would reintroduce
+// the exact concurrent-request rate-limit/ban risk found in Part 1, at chart-load frequency. This
+// export exists so a correct, confirmed-field-name kline call is available if a future feature
+// needs it, without touching the working chart path. --resolution is the confirmed flag,
+// --interval (used in the earlier draft doc) is wrong and would 400.
+// ============================================================================
+
+export type KlineResolution = "30s" | "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
+
+const klineCandleSchema = z.object({
+  time: z.union([z.string(), z.number()]),
+  open: z.union([z.string(), z.number()]),
+  close: z.union([z.string(), z.number()]),
+  high: z.union([z.string(), z.number()]),
+  low: z.union([z.string(), z.number()]),
+  volume: z.union([z.string(), z.number()]).nullable().optional(),
+});
+const klineResponseSchema = z.object({ list: z.array(klineCandleSchema) });
+
+export interface GmgnCandle {
+  time: number; // unix ms
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number;
+}
+
+/** gmgn-cli market kline has no --limit flag -- it paginates via --from/--to (Unix seconds),
+ * not a page size. Defaults to the last 24h of candles at the requested resolution when no
+ * window is given. */
+export async function getKline(
+  tokenAddress: string,
+  resolution: KlineResolution,
+  window?: { fromUnixSeconds: number; toUnixSeconds: number },
+): Promise<GmgnCandle[]> {
+  const { fromUnixSeconds, toUnixSeconds } = window ?? {
+    fromUnixSeconds: Math.floor(Date.now() / 1000) - 24 * 60 * 60,
+    toUnixSeconds: Math.floor(Date.now() / 1000),
+  };
+  try {
+    const json = await runCli([
+      "market",
+      "kline",
+      "--chain",
+      "sol",
+      "--address",
+      tokenAddress,
+      "--resolution",
+      resolution,
+      "--from",
+      String(fromUnixSeconds),
+      "--to",
+      String(toUnixSeconds),
+    ]);
+    const parsed = klineResponseSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new KiraClientError(SOURCE, `kline response validation failed: ${parsed.error.message}`);
+    }
+    return parsed.data.list.map((c) => ({
+      time: Number(c.time),
+      open: Number(c.open),
+      close: Number(c.close),
+      high: Number(c.high),
+      low: Number(c.low),
+      volume: toNumber(c.volume) ?? 0,
+    }));
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}

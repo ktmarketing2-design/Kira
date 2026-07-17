@@ -22,6 +22,7 @@ import { startSmartMoneyDigestWorker } from "./workers/smartMoneyDigestWorker.js
 import { startSmartWalletRefreshWorker } from "./workers/smartWalletRefreshWorker.js";
 import { startKolGmgnSyncWorker } from "./workers/kolGmgnSyncWorker.js";
 import { startSmartMoneyGmgnSyncWorker } from "./workers/smartMoneyGmgnSyncWorker.js";
+import { startGmgnScanner, registerGmgnScannerCron } from "./workers/gmgnScannerWorker.js";
 import {
   pnlDigestQueue,
   walletPerformanceQueue,
@@ -46,6 +47,7 @@ const workers = [
   startSmartWalletRefreshWorker(),
   startKolGmgnSyncWorker(),
   startSmartMoneyGmgnSyncWorker(),
+  startGmgnScanner(),
 ];
 
 for (const worker of workers) {
@@ -108,6 +110,11 @@ await smartMoneyGmgnSyncQueue.add(
   { repeat: { every: 5 * 60 * 1000 }, jobId: "smartmoney-gmgn-sync-5min" },
 );
 
+// Primary token-discovery feed as of Sprint 7: polls GMGN trenches (new/near-graduation/completed)
+// plus smart-degen signal-type-12 every 60s and enqueues kira-signal-scan for new tokens, same as
+// the Helius LP-creation webhook does. That webhook stays live as a backup trigger, not removed.
+await registerGmgnScannerCron();
+
 console.log(`[kira-workers] ${workers.length} workers started: ${workers.map((w) => w.name).join(", ")}`);
 console.log("[kira-workers] kira-pnl-digest repeatable job registered for 06:00 UTC daily");
 console.log("[kira-workers] kira-wallet-performance repeatable job registered for 02:00 UTC daily");
@@ -115,6 +122,7 @@ console.log("[kira-workers] kira-smart-money-digest repeatable job registered fo
 console.log("[kira-workers] kira-smart-wallet-refresh repeatable job registered for 03:00 UTC daily (plus one immediate run on startup)");
 console.log("[kira-workers] kira-kol-gmgn-sync repeatable job registered every 5 minutes");
 console.log("[kira-workers] kira-smartmoney-gmgn-sync repeatable job registered every 5 minutes");
+console.log("[kira-workers] kira-gmgn-scanner repeatable job registered every 60 seconds (trenches + smart-degen signals)");
 
 // Not a BullMQ worker, a persistent GramJS client listening for new Telegram messages. Runs
 // independently of the job-queue workers above; failures here (bad session, network issue) are

@@ -17,6 +17,7 @@ export const smartMoneyDigestQueue = new Queue("kira-smart-money-digest", { conn
 export const smartWalletRefreshQueue = new Queue("kira-smart-wallet-refresh", { connection: bullConnection });
 export const kolGmgnSyncQueue = new Queue("kira-kol-gmgn-sync", { connection: bullConnection });
 export const smartMoneyGmgnSyncQueue = new Queue("kira-smartmoney-gmgn-sync", { connection: bullConnection });
+export const gmgnScannerQueue = new Queue("kira-gmgn-scanner", { connection: bullConnection });
 
 export const ddQueueEvents = new QueueEvents("kira-dd", { connection: bullConnection });
 export const volumeQueueEvents = new QueueEvents("kira-volume", { connection: bullConnection });

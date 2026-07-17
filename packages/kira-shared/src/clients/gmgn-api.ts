@@ -506,3 +506,43 @@ export async function getSmartMoneyTrades(limit = 100): Promise<GmgnTradeRecord[
     return [];
   }
 }
+
+// ============================================================================
+// Discovery scanner (Sprint 7 GMGN scanner): trenches + smart-degen signals
+// ============================================================================
+
+export type TrenchType = "new_creation" | "near_completion" | "completed";
+
+/**
+ * Raw pass-through rather than a strict zod schema: field names and the response envelope shape
+ * here come from Antigravity's own live-verified report, not this client's own test, per explicit
+ * instruction not to re-test these specific endpoints. Notably reported: the response root has
+ * multiple bucket keys regardless of which --type was requested (e.g. new_creation's response
+ * includes both a "new_creation" and an empty "completed" key), and near_completion's actual
+ * token list lands under a "pump" key, not "near_completion" -- callers should read the specific
+ * bucket key documented for the --type they asked for, not assume the --type value is the key.
+ */
+export async function getTrenches(type: TrenchType): Promise<Record<string, unknown[]>> {
+  try {
+    const json = await runCli(["market", "trenches", "--chain", "sol", "--type", type, "--limit", "50"]);
+    if (json && typeof json === "object" && !Array.isArray(json)) {
+      return json as Record<string, unknown[]>;
+    }
+    return {};
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return {};
+  }
+}
+
+/** Signal types 14/15/16 reportedly return HTTP 400 (not supported) per the same unverified-by-
+ * this-client report -- only type 12 (smart money cluster buy) is called. */
+export async function getSmartDegenSignals(): Promise<unknown[]> {
+  try {
+    const json = await runCli(["market", "signal", "--chain", "sol", "--signal-type", "12"]);
+    return Array.isArray(json) ? json : [];
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}

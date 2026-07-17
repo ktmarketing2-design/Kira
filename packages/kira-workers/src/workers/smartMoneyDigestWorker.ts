@@ -14,11 +14,21 @@ interface SmartMoneyEventRow {
   kira_smart_wallets: { label: string } | { label: string }[] | null;
 }
 
-/** "Tokens you're watching" has no dedicated feature yet (the token page's Add to Watchlist
- * button is still a disabled stub), so this uses the closest existing proxy: tokens the user's
- * own roster wallets have actually traded recently. Not a literal watchlist, but the same idea
- * — tokens this user already has a reason to care about. */
+/** Prefers the real kira_watchlist table (Sprint 8 Part 2) now that "Add to Watchlist" is a
+ * working feature. Falls back to the roster-wallet-activity proxy this used before that table
+ * existed, but only when the watchlist itself is empty -- a user with an empty watchlist still
+ * benefits from "tokens I have a reason to care about" via their roster, rather than getting
+ * nothing back from this function. */
 async function loadWatchedTokens(userId: string): Promise<Set<string>> {
+  const { data: watchlistRows } = await supabase
+    .from("kira_watchlist")
+    .select("token_address")
+    .eq("user_id", userId);
+
+  if (watchlistRows && watchlistRows.length > 0) {
+    return new Set(watchlistRows.map((w) => w.token_address));
+  }
+
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: rosterRows } = await supabase.from("kira_roster_wallets").select("address").eq("user_id", userId);

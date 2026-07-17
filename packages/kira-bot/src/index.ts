@@ -453,6 +453,59 @@ bot.command("watchlist", async (ctx) => {
   }
 });
 
+bot.command("ask", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const arg = ctx.match?.trim() ?? "";
+  const spaceIdx = arg.indexOf(" ");
+  const tokenAddress = spaceIdx === -1 ? arg : arg.slice(0, spaceIdx);
+  const question = spaceIdx === -1 ? "" : arg.slice(spaceIdx + 1).trim();
+
+  if (!tokenAddress || !isLikelyAddress(tokenAddress) || !question) {
+    await ctx.reply("Usage: /ask <token address> <question>\n\nExample:\n/ask DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263 when was it launched?");
+    return;
+  }
+
+  const placeholder = await ctx.reply("🔍 Researching...");
+
+  try {
+    const result = await apiRequest<{ answer: string; tokenAddress: string }>(userId, "POST", "/ask", {
+      tokenAddress,
+      question,
+    });
+
+    let symbol = truncateAddress(tokenAddress);
+    try {
+      const cached = await apiRequest<{ card: { symbol: string | null } | null }>(
+        userId,
+        "GET",
+        `/token/${tokenAddress}/dd-cached`,
+      );
+      if (cached.card?.symbol) symbol = cached.card.symbol;
+    } catch {
+      // Non-fatal -- fall back to the truncated address in the header if the cached-DD lookup fails.
+    }
+
+    const text = [
+      `🔍 $${symbol} — Research`,
+      "",
+      result.answer,
+      "",
+      "Data: DD card · KOL calls · Smart money · Your roster",
+    ].join("\n");
+
+    await ctx.api.editMessageText(ctx.chat!.id, placeholder.message_id, text);
+  } catch (err) {
+    const msg =
+      err instanceof ApiError && err.status === 403
+        ? "Daily /ask limit reached for your tier. Upgrade with /upgrade."
+        : "Couldn't research that token right now.";
+    await ctx.api.editMessageText(ctx.chat!.id, placeholder.message_id, msg).catch(() => {});
+    console.error("[kira-bot:ask] failed:", err instanceof Error ? err.message : err);
+  }
+});
+
 bot.command("kol", async (ctx) => {
   const userId = ctx.from?.id;
   if (!userId) return;
@@ -530,6 +583,7 @@ await bot.api.setMyCommands([
   { command: "kol", description: "KOL tracker and personal sources" },
   { command: "pnl", description: "Your PnL digest" },
   { command: "watchlist", description: "Your saved tokens: /watchlist [add|remove] [address]" },
+  { command: "ask", description: "Ask about a token: /ask [address] [question]" },
   { command: "upgrade", description: "View plans and upgrade" },
 ]);
 

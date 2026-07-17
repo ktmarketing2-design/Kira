@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase.js";
 import { requireRosterCapacity } from "../middleware/tier.js";
 import { heliusSyncQueue, walletPerformanceQueue } from "../lib/queue.js";
 import { redis } from "../lib/redis.js";
+import { gmgnApi } from "@ceronix/kira-shared";
 
 const router = Router();
 
@@ -166,6 +167,116 @@ router.post("/:address/refresh-performance", async (req, res) => {
   await walletPerformanceQueue.add("score", { walletAddress: address });
 
   res.status(202).json({ queued: true });
+});
+
+const PROFILE_CACHE_TTL_SECONDS = 300;
+
+interface RawPnlStat {
+  winrate?: number | null;
+  token_num?: number | null;
+  avg_holding_period?: number | null;
+  pnl_gt_5x_num?: number | null;
+  pnl_0x_2x_num?: number | null;
+}
+
+interface RawWalletStats {
+  wallet_address?: string;
+  native_balance?: number | string | null;
+  realized_profit?: number | string | null;
+  realized_profit_pnl?: number | string | null;
+  buy?: number | null;
+  sell?: number | null;
+  pnl_stat?: RawPnlStat;
+  common?: { tags?: string[]; fund_from_address?: string | null };
+}
+
+interface RawHolding {
+  balance?: number | string | null;
+  usd_value?: number | string | null;
+  realized_profit?: number | string | null;
+  realized_profit_pnl?: number | string | null;
+  accu_cost?: number | string | null;
+  token?: {
+    token_address?: string;
+    symbol?: string;
+    name?: string;
+    logo?: string;
+    price?: number | string | null;
+  };
+}
+
+interface RawActivity {
+  transaction_hash?: string;
+  base_address?: string;
+  side?: string;
+  buy_cost_usd?: number | string | null;
+  amount_usd?: number | string | null;
+  timestamp?: number | null;
+  base_token?: { symbol?: string };
+}
+
+function num(v: number | string | null | undefined): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+router.get("/:address/profile", async (req, res) => {
+  const { address } = req.params;
+  const cacheKey = `wallet:profile:${address}`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    res.json(JSON.parse(cached));
+    return;
+  }
+
+  const raw = await gmgnApi.getWalletProfileRaw(address);
+  if (!raw.stats) {
+    res.status(502).json({ error: "Profile data unavailable" });
+    return;
+  }
+
+  const stats = raw.stats as RawWalletStats;
+  const profile = {
+    address,
+    stats: {
+      realizedProfit: num(stats.realized_profit),
+      realizedProfitPnl: num(stats.realized_profit_pnl),
+      buys: stats.buy ?? 0,
+      sells: stats.sell ?? 0,
+      totalTrades: (stats.buy ?? 0) + (stats.sell ?? 0),
+      winRate: stats.pnl_stat?.winrate ?? null,
+      tokenCount: stats.pnl_stat?.token_num ?? null,
+      avgHoldingPeriodSeconds: stats.pnl_stat?.avg_holding_period ?? null,
+      pnlGt5x: stats.pnl_stat?.pnl_gt_5x_num ?? null,
+      pnl0to2x: stats.pnl_stat?.pnl_0x_2x_num ?? null,
+      tags: stats.common?.tags ?? [],
+      nativeBalance: num(stats.native_balance),
+    },
+    holdings: (raw.holdings as RawHolding[]).map((h) => ({
+      tokenAddress: h.token?.token_address ?? null,
+      symbol: h.token?.symbol ?? null,
+      name: h.token?.name ?? null,
+      logo: h.token?.logo ?? null,
+      price: num(h.token?.price),
+      balance: num(h.balance),
+      usdValue: num(h.usd_value),
+      realizedProfit: num(h.realized_profit),
+      realizedProfitPnl: num(h.realized_profit_pnl),
+    })),
+    recentActivity: (raw.activity as RawActivity[]).map((a) => ({
+      txHash: a.transaction_hash ?? null,
+      tokenAddress: a.base_address ?? null,
+      symbol: a.base_token?.symbol ?? null,
+      side: a.side === "sell" ? "sell" : "buy",
+      usdValue: num(a.buy_cost_usd ?? a.amount_usd),
+      timestamp: a.timestamp ?? null,
+    })),
+  };
+
+  await redis.set(cacheKey, JSON.stringify(profile), "EX", PROFILE_CACHE_TTL_SECONDS);
+  res.json(profile);
 });
 
 export default router;

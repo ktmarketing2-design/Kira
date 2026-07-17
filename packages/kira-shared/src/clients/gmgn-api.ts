@@ -546,3 +546,42 @@ export async function getSmartDegenSignals(): Promise<unknown[]> {
     return [];
   }
 }
+
+// ============================================================================
+// Wallet profile slide-over (Sprint 7 Part 5): full portfolio stats + holdings + activity
+// ============================================================================
+
+/** Raw pass-through, same reasoning as getTrenches -- field names come from Antigravity's
+ * live-verified report (kira-sprint7-worker-code.md), not re-tested independently. Fetches the
+ * three portfolio views in parallel; each call still goes through runCli's shared rate limiter,
+ * so they queue rather than actually firing concurrently against GMGN. */
+export async function getWalletProfileRaw(walletAddress: string): Promise<{
+  stats: Record<string, unknown> | null;
+  holdings: unknown[];
+  activity: unknown[];
+}> {
+  const [stats, holdings, activity] = await Promise.all([
+    runCli(["portfolio", "stats", "--chain", "sol", "--wallet", walletAddress]).catch((err) => {
+      logClientFailure(SOURCE, err);
+      return null;
+    }),
+    runCli(["portfolio", "holdings", "--chain", "sol", "--wallet", walletAddress, "--limit", "10"]).catch((err) => {
+      logClientFailure(SOURCE, err);
+      return null;
+    }),
+    runCli(["portfolio", "activity", "--chain", "sol", "--wallet", walletAddress, "--limit", "20"]).catch((err) => {
+      logClientFailure(SOURCE, err);
+      return null;
+    }),
+  ]);
+
+  return {
+    stats: stats && typeof stats === "object" && !Array.isArray(stats) ? (stats as Record<string, unknown>) : null,
+    holdings: holdings && typeof holdings === "object" && Array.isArray((holdings as Record<string, unknown>).list)
+      ? ((holdings as Record<string, unknown>).list as unknown[])
+      : [],
+    activity: activity && typeof activity === "object" && Array.isArray((activity as Record<string, unknown>).list)
+      ? ((activity as Record<string, unknown>).list as unknown[])
+      : [],
+  };
+}

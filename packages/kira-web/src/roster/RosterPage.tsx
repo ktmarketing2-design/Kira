@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { apiRequest, ApiError } from "../lib/api.js";
 import { useAppData } from "../shell/AppDataContext.js";
 import type { RosterWallet } from "../lib/types.js";
+import WalletProfileSlideOver from "./WalletProfileSlideOver.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const TIER_LIMITS: Record<string, number> = { scout: 5, pro: 50, elite: Infinity, studio: Infinity };
@@ -32,6 +33,7 @@ export default function RosterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [refreshingAddress, setRefreshingAddress] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [profileWallet, setProfileWallet] = useState<RosterWallet | null>(null);
 
   function load() {
     setLoading(true);
@@ -159,7 +161,11 @@ export default function RosterPage() {
             </thead>
             <tbody>
               {sortedWallets.map((w) => (
-                <tr key={w.id} className="border-b border-kira-border last:border-0">
+                <tr
+                  key={w.id}
+                  className="border-b border-kira-border last:border-0 cursor-pointer hover:bg-kira-surface-2/50"
+                  onClick={() => setProfileWallet(w)}
+                >
                   <td className="px-4 py-3 font-data text-xs text-kira-text">{truncate(w.address)}</td>
                   <td className="px-4 py-3 text-kira-text-muted">{w.label ?? "—"}</td>
                   <td className="px-4 py-3 text-kira-text-muted font-data text-xs">
@@ -174,7 +180,7 @@ export default function RosterPage() {
                   <td className="px-4 py-3 text-kira-text-dim text-xs">
                     {new Date(w.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     {canRefreshPerformance && (
                       <button
                         onClick={() => void handleRefreshPerformance(w.address)}
@@ -197,6 +203,11 @@ export default function RosterPage() {
           </table>
         </div>
       )}
+      <WalletProfileSlideOver
+        address={profileWallet?.address ?? null}
+        label={profileWallet?.label}
+        onClose={() => setProfileWallet(null)}
+      />
     </div>
   );
 }

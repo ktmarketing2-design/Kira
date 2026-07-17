@@ -27,6 +27,7 @@ import smartMoneyRouter from "./routes/smartMoney.js";
 import trendingRouter from "./routes/trending.js";
 import discoverRouter from "./routes/discover.js";
 import watchlistRouter from "./routes/watchlist.js";
+import askRouter from "./routes/ask.js";
 
 const app = express();
 const PORT = Number(process.env.KIRA_API_PORT || 4020);
@@ -87,6 +88,7 @@ app.use("/smart-money", smartMoneyRouter);
 app.use("/trending", trendingRouter);
 app.use("/discover", discoverRouter);
 app.use("/watchlist", watchlistRouter);
+app.use("/ask", askRouter);
 
 app.listen(PORT, () => {
   console.log(`[kira-api] listening on port ${PORT}`);

@@ -13,10 +13,11 @@ export const TIER_LIMITS: Record<
     maxPnlWallets: number;
     maxUserKolSources: number;
     maxWatchlist: number;
+    maxAskPerDay: number;
   }
 > = {
-  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3, maxSignalFilters: 1, maxPnlWallets: 1, maxUserKolSources: 3, maxWatchlist: 10 },
-  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2, maxSignalFilters: 5, maxPnlWallets: 5, maxUserKolSources: 20, maxWatchlist: 100 },
+  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3, maxSignalFilters: 1, maxPnlWallets: 1, maxUserKolSources: 3, maxWatchlist: 10, maxAskPerDay: 3 },
+  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2, maxSignalFilters: 5, maxPnlWallets: 5, maxUserKolSources: 20, maxWatchlist: 100, maxAskPerDay: 10 },
   elite: {
     maxWallets: Infinity,
     maxDdPerDay: Infinity,
@@ -25,6 +26,7 @@ export const TIER_LIMITS: Record<
     maxPnlWallets: Infinity,
     maxUserKolSources: Infinity,
     maxWatchlist: Infinity,
+    maxAskPerDay: Infinity,
   },
   studio: {
     maxWallets: Infinity,
@@ -34,6 +36,7 @@ export const TIER_LIMITS: Record<
     maxPnlWallets: Infinity,
     maxUserKolSources: Infinity,
     maxWatchlist: Infinity,
+    maxAskPerDay: Infinity,
   },
 };
 
@@ -267,6 +270,34 @@ export async function requireWatchlistCapacity(req: Request, res: Response, next
   if ((count ?? 0) >= limit) {
     res.status(403).json({
       error: `Watchlist limit reached (${limit} tokens on ${tier} tier)`,
+      upgradeUrl: "https://kira.ceronix.ai/upgrade",
+    });
+    return;
+  }
+
+  next();
+}
+
+/** Rejects (and otherwise increments) the daily /ask query counter. */
+export async function requireAskQuota(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const tier = req.userTier ?? "scout";
+  const limit = TIER_LIMITS[tier].maxAskPerDay;
+
+  if (limit === Infinity) {
+    next();
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `ask:count:${req.user!.id}:${today}`;
+  const current = await redis.incr(key);
+  if (current === 1) {
+    await redis.expire(key, 60 * 60 * 26);
+  }
+
+  if (current > limit) {
+    res.status(403).json({
+      error: `Daily /ask limit reached (${limit}/day on ${tier} tier)`,
       upgradeUrl: "https://kira.ceronix.ai/upgrade",
     });
     return;

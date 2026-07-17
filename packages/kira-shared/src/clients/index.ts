@@ -11,6 +11,7 @@ export * as raydiumLaunchlab from "./raydiumLaunchlab.js";
 export * as lunarcrush from "./lunarcrush.js";
 export * as birdeye from "./birdeye.js";
 export * as gmgnApi from "./gmgn-api.js";
+export * as gemini from "./gemini.js";
 export { KiraClientError } from "./errors.js";
 export type { HeliusConfig } from "./helius.js";
 export type { BirdeyeWallet } from "./birdeye.js";

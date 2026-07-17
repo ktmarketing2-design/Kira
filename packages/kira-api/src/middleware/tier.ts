@@ -12,10 +12,11 @@ export const TIER_LIMITS: Record<
     maxSignalFilters: number;
     maxPnlWallets: number;
     maxUserKolSources: number;
+    maxWatchlist: number;
   }
 > = {
-  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3, maxSignalFilters: 1, maxPnlWallets: 1, maxUserKolSources: 3 },
-  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2, maxSignalFilters: 5, maxPnlWallets: 5, maxUserKolSources: 20 },
+  scout: { maxWallets: 5, maxDdPerDay: 10, minClusterThreshold: 3, maxSignalFilters: 1, maxPnlWallets: 1, maxUserKolSources: 3, maxWatchlist: 10 },
+  pro: { maxWallets: 50, maxDdPerDay: Infinity, minClusterThreshold: 2, maxSignalFilters: 5, maxPnlWallets: 5, maxUserKolSources: 20, maxWatchlist: 100 },
   elite: {
     maxWallets: Infinity,
     maxDdPerDay: Infinity,
@@ -23,6 +24,7 @@ export const TIER_LIMITS: Record<
     maxSignalFilters: Infinity,
     maxPnlWallets: Infinity,
     maxUserKolSources: Infinity,
+    maxWatchlist: Infinity,
   },
   studio: {
     maxWallets: Infinity,
@@ -31,6 +33,7 @@ export const TIER_LIMITS: Record<
     maxSignalFilters: Infinity,
     maxPnlWallets: Infinity,
     maxUserKolSources: Infinity,
+    maxWatchlist: Infinity,
   },
 };
 
@@ -232,6 +235,38 @@ export async function requireUserKolSourceCapacity(req: Request, res: Response, 
   if ((count ?? 0) >= limit) {
     res.status(403).json({
       error: `Personal KOL source limit reached (${limit} on ${tier} tier)`,
+      upgradeUrl: "https://kira.ceronix.ai/upgrade",
+    });
+    return;
+  }
+
+  next();
+}
+
+/** Rejects adding a watchlist token once the tier's cap is reached. */
+export async function requireWatchlistCapacity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const tier = req.userTier ?? "scout";
+  const limit = TIER_LIMITS[tier].maxWatchlist;
+
+  if (limit === Infinity) {
+    next();
+    return;
+  }
+
+  const { count, error } = await supabase
+    .from("kira_watchlist")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", req.user!.id);
+
+  if (error) {
+    console.error("[kira-api:tier] watchlist count failed:", error.message);
+    res.status(500).json({ error: "Internal server error checking watchlist limit" });
+    return;
+  }
+
+  if ((count ?? 0) >= limit) {
+    res.status(403).json({
+      error: `Watchlist limit reached (${limit} tokens on ${tier} tier)`,
       upgradeUrl: "https://kira.ceronix.ai/upgrade",
     });
     return;

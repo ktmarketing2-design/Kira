@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { apiRequest, ApiError } from "../lib/api.js";
+import { useParams } from "react-router-dom";
+import { apiRequest } from "../lib/api.js";
 import type { DdCard } from "../lib/types.js";
 import WatchlistButton from "../shell/WatchlistButton.js";
 
@@ -84,13 +84,13 @@ function fmtUsd(v: number | null): string {
 
 export default function SignalsPage() {
   const { address: routeAddress } = useParams<{ address: string }>();
-  const navigate = useNavigate();
 
   // Scoped to selected token address, defaulting to $ANSEM if none provided
   const address = routeAddress || "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
 
   // DD card data
   const [card, setCard] = useState<DdCard | null>(null);
+  const [fullData, setFullData] = useState<any | null>(null);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -118,8 +118,14 @@ export default function SignalsPage() {
   // Fetch DD card
   function loadCard(addr: string) {
     setError(false);
-    apiRequest<DdCard>("GET", `/token/${addr}/dd`)
-      .then(setCard)
+    Promise.all([
+      apiRequest<DdCard>("GET", `/token/${addr}/dd`),
+      apiRequest<any>("GET", `/token/${addr}/full`).catch(() => null)
+    ])
+      .then(([dd, full]) => {
+        setCard(dd);
+        if (full) setFullData(full);
+      })
       .catch(() => setError(true));
   }
 
@@ -526,7 +532,7 @@ export default function SignalsPage() {
         <div className="text-right">
           <div className="font-display text-lg text-tt-fg">${currentPriceUsd != null ? currentPriceUsd.toFixed(6) : "—"}</div>
           <div className="text-[10px] text-tt-red font-mono mt-0.5">
-            {card.market.priceChange24hPercent != null ? `${card.market.priceChange24hPercent >= 0 ? "+" : ""}${card.market.priceChange24hPercent.toFixed(2)}% (24h)` : "—"}
+            {fullData?.priceStats?.chg24h != null ? `${fullData.priceStats.chg24h >= 0 ? "+" : ""}${fullData.priceStats.chg24h.toFixed(2)}% (24h)` : "—"}
           </div>
         </div>
       </div>

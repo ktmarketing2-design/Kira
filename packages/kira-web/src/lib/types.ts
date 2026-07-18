@@ -37,6 +37,7 @@ export interface Alert {
   id: string;
   user_id: string;
   type: "cluster_buy" | "cluster_sell" | "new_token_cluster" | "signal_filter_match";
+  filter_id?: string | null;
   token_address: string;
   token_symbol: string | null;
   wallet_addresses: string[];

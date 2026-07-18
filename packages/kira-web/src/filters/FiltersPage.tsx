@@ -2,24 +2,49 @@ import { useEffect, useState } from "react";
 import { apiRequest, ApiError } from "../lib/api.js";
 import { useAppData } from "../shell/AppDataContext.js";
 import FilterForm, { type FilterFormValues } from "./FilterForm.js";
-import type { SignalFilter } from "../lib/types.js";
+import type { SignalFilter, Alert } from "../lib/types.js";
 
 const TIER_LIMITS: Record<string, number> = { scout: 1, pro: 5, elite: Infinity, studio: Infinity };
 
-function criteriaSummary(f: SignalFilter): string {
-  const bits: string[] = [];
-  if (f.min_rug_score != null) bits.push(`rug≥${f.min_rug_score}`);
-  if (f.min_liquidity_usd != null) bits.push(`liq≥$${f.min_liquidity_usd.toLocaleString("en-US")}`);
-  if (f.max_fdv_usd != null) bits.push(`fdv≤$${f.max_fdv_usd.toLocaleString("en-US")}`);
-  if (f.min_volume_24h != null) bits.push(`vol≥$${f.min_volume_24h.toLocaleString("en-US")}`);
-  if (f.launchpads?.length) bits.push(f.launchpads.join("/"));
-  if (f.require_roster_wallet) bits.push("roster required");
-  return bits.length ? bits.join(", ") : "no criteria set";
+interface MatchAlert extends Alert {
+  filter_id?: string | null;
+}
+
+interface Chip {
+  label: string;
+  value: string;
+}
+
+function criteriaChips(f: SignalFilter): Chip[] {
+  const chips: Chip[] = [];
+  if (f.min_liquidity_usd != null) chips.push({ label: "Liquidity", value: `≥ $${f.min_liquidity_usd.toLocaleString("en-US")}` });
+  if (f.max_fdv_usd != null) chips.push({ label: "FDV", value: `≤ $${f.max_fdv_usd.toLocaleString("en-US")}` });
+  if (f.min_volume_24h != null) chips.push({ label: "24h Vol", value: `≥ $${f.min_volume_24h.toLocaleString("en-US")}` });
+  if (f.min_holders != null) chips.push({ label: "Holders", value: `≥ ${f.min_holders}` });
+  if (f.max_age_hours != null) chips.push({ label: "Age", value: `≤ ${f.max_age_hours}h` });
+  if (f.min_rug_score != null) chips.push({ label: "Rug Score", value: `≥ ${f.min_rug_score}` });
+  if (f.min_volume_score != null) chips.push({ label: "Vol Score", value: `≥ ${f.min_volume_score}` });
+  if (f.launchpads?.length) chips.push({ label: "Launchpad", value: f.launchpads.join(" / ") });
+  if (f.require_lp_locked) chips.push({ label: "LP", value: "locked" });
+  if (f.require_mint_revoked) chips.push({ label: "Mint", value: "revoked" });
+  if (f.require_roster_wallet) chips.push({ label: "Cluster size", value: `≥ ${f.min_roster_wallets} wallets` });
+  return chips;
+}
+
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 export default function FiltersPage() {
   const { me } = useAppData();
   const [filters, setFilters] = useState<SignalFilter[]>([]);
+  const [matches, setMatches] = useState<MatchAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SignalFilter | undefined>(undefined);
@@ -28,8 +53,14 @@ export default function FiltersPage() {
 
   function load() {
     setLoading(true);
-    apiRequest<{ filters: SignalFilter[] }>("GET", "/signal-filters")
-      .then((res) => setFilters(res.filters))
+    Promise.all([
+      apiRequest<{ filters: SignalFilter[] }>("GET", "/signal-filters"),
+      apiRequest<{ alerts: MatchAlert[] }>("GET", "/alerts?type=signal_filter_match"),
+    ])
+      .then(([filtersRes, alertsRes]) => {
+        setFilters(filtersRes.filters);
+        setMatches(alertsRes.alerts);
+      })
       .finally(() => setLoading(false));
   }
 
@@ -79,29 +110,30 @@ export default function FiltersPage() {
   const tier = me?.tier ?? "scout";
   const limit = TIER_LIMITS[tier] ?? 1;
   const activeCount = filters.filter((f) => f.active).length;
+  const atCapacity = limit !== Infinity && activeCount >= limit;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="font-display text-lg text-kira-text">Signal Filters</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="font-display uppercase text-lg text-tt-fg">Signal Filters</h1>
         {!formOpen && (
           <button
             onClick={() => {
               setEditing(undefined);
               setFormOpen(true);
             }}
-            className="bg-kira-accent text-kira-bg rounded px-3 py-2 text-sm font-medium"
+            className="border border-tt-brand text-tt-brand font-body text-xs uppercase tracking-wide px-4 py-2.5 rounded-md hover:bg-tt-brand hover:text-tt-bg transition-colors"
           >
             + New Filter
           </button>
         )}
       </div>
 
-      <p className="text-xs text-kira-text-dim mb-4">
+      <p className="text-[10px] text-tt-fg-faint mb-4">
         {activeCount} of {limit === Infinity ? "unlimited" : limit} active filters used ({tier})
       </p>
 
-      {error && <p className="text-xs text-kira-red mb-4">{error}</p>}
+      {error && <p className="text-xs text-tt-red mb-4">{error}</p>}
 
       {formOpen && (
         <FilterForm
@@ -116,43 +148,99 @@ export default function FiltersPage() {
       )}
 
       {loading ? (
-        <div className="text-kira-text-muted text-sm">Loading...</div>
+        <div className="text-tt-fg-dim text-sm">Loading...</div>
       ) : filters.length === 0 ? (
-        <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center text-kira-text-muted text-sm">
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm">
           No Signal Filters yet. Create one to get alerted the moment a new token matches your criteria,
           anywhere on Solana, regardless of who's buying.
         </div>
       ) : (
-        <div className="space-y-3">
-          {filters.map((f) => (
-            <div key={f.id} className="bg-kira-surface border border-kira-border rounded-md p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${f.active ? "bg-kira-green" : "bg-kira-text-dim"}`} />
-                  <span className="font-display text-sm text-kira-text">{f.name}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filters.map((f) => {
+            const chips = criteriaChips(f);
+            const filterMatches = matches.filter((m) => m.filter_id === f.id).slice(0, 3);
+            const lastMatchAt = filterMatches[0]?.created_at;
+
+            return (
+              <div
+                key={f.id}
+                className={`bg-tt-bg-raised border border-tt-border rounded-md p-5 ${f.active ? "" : "opacity-60"}`}
+              >
+                <div className="flex justify-between items-start mb-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${f.active ? "bg-tt-green shadow-[0_0_6px_#4AF626]" : "bg-tt-fg-faint"}`} />
+                    <span className="font-display text-sm text-tt-fg">{f.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className={`font-display text-base ${f.active ? "text-tt-green" : "text-tt-fg-faint"}`}>
+                      {f.matches24h}
+                    </div>
+                    <div className="text-[9px] text-tt-fg-faint uppercase tracking-wide">Match / 24h</div>
+                  </div>
                 </div>
-                <span className="text-xs text-kira-text-dim">{f.matches24h} match{f.matches24h === 1 ? "" : "es"} / 24h</span>
+
+                <div className="flex flex-wrap gap-1.5 mb-3.5">
+                  {chips.length === 0 ? (
+                    <span className="text-[10px] text-tt-fg-faint">No criteria set</span>
+                  ) : (
+                    chips.map((c) => (
+                      <span key={c.label} className="border border-tt-border rounded-md px-2.5 py-1 text-[10px] text-tt-fg-dim">
+                        {c.label} <b className="text-tt-fg font-normal">{c.value}</b>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                <div className="flex justify-between text-[10px] text-tt-fg-faint border-t border-tt-border pt-3 mb-3.5">
+                  <span>Created {new Date(f.created_at).toLocaleDateString()}</span>
+                  <span>
+                    {!f.active
+                      ? atCapacity
+                        ? "Inactive · tier limit"
+                        : "Inactive"
+                      : lastMatchAt
+                        ? `Last match ${timeAgo(lastMatchAt)}`
+                        : "No matches yet"}
+                  </span>
+                </div>
+
+                <div className="mb-3.5">
+                  <div className="text-[9px] text-tt-fg-faint uppercase tracking-wide mb-2">Recent Matches</div>
+                  {filterMatches.length === 0 ? (
+                    <div className="text-[10px] text-tt-fg-faint">No matches yet</div>
+                  ) : (
+                    filterMatches.map((m) => (
+                      <div key={m.id} className="flex justify-between text-xs py-1.5 border-t border-tt-border first:border-t-0">
+                        <span className="text-tt-fg">${m.token_symbol ?? "?"}</span>
+                        <span className="text-tt-fg-faint text-[10px]">{timeAgo(m.created_at)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="flex gap-4 text-xs">
+                  <button
+                    onClick={() => void handleToggle(f)}
+                    className={f.active ? "text-tt-fg-dim hover:text-tt-fg" : "text-tt-green hover:underline"}
+                  >
+                    {f.active ? "Deactivate" : "Activate"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditing(f);
+                      setFormOpen(true);
+                    }}
+                    className="text-[#6FA8DC] hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <button onClick={() => void handleDelete(f)} className="text-tt-red hover:underline">
+                    Delete
+                  </button>
+                </div>
               </div>
-              <p className="text-xs text-kira-text-muted mt-2">{criteriaSummary(f)}</p>
-              <div className="flex gap-3 mt-3 text-xs">
-                <button onClick={() => void handleToggle(f)} className="text-kira-accent hover:underline">
-                  {f.active ? "Deactivate" : "Activate"}
-                </button>
-                <button
-                  onClick={() => {
-                    setEditing(f);
-                    setFormOpen(true);
-                  }}
-                  className="text-kira-accent hover:underline"
-                >
-                  Edit
-                </button>
-                <button onClick={() => void handleDelete(f)} className="text-kira-red hover:underline">
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

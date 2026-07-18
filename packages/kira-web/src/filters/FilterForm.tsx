@@ -63,25 +63,25 @@ function NumberCriterion({
         type="checkbox"
         checked={enabled}
         onChange={(e) => onChange(e.target.checked ? 0 : null)}
-        className="accent-kira-accent"
+        className="accent-tt-brand"
       />
-      <span className="text-xs text-kira-text-muted w-40 shrink-0">{label}</span>
+      <span className="text-xs text-tt-fg-dim w-40 shrink-0">{label}</span>
       <input
         type="number"
         disabled={!enabled}
         value={value ?? ""}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-32 bg-kira-surface-2 border border-kira-border rounded px-2 py-1 text-xs text-kira-text disabled:opacity-40"
+        className="w-32 bg-tt-bg-panel border border-tt-border rounded-md px-2 py-1 text-xs text-tt-fg disabled:opacity-40"
       />
-      {unit && <span className="text-xs text-kira-text-dim">{unit}</span>}
+      {unit && <span className="text-xs text-tt-fg-faint">{unit}</span>}
     </div>
   );
 }
 
 function BoolCriterion({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center gap-2 py-1.5 text-xs text-kira-text-muted">
-      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="accent-kira-accent" />
+    <label className="flex items-center gap-2 py-1.5 text-xs text-tt-fg-dim">
+      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="accent-tt-brand" />
       {label}
     </label>
   );
@@ -132,20 +132,20 @@ export default function FilterForm({
   }
 
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-4 mb-6">
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md p-4 mb-6">
       <div className="mb-3">
-        <label className="block text-xs text-kira-text-muted mb-1">Filter name</label>
+        <label className="block text-xs text-tt-fg-dim mb-1">Filter name</label>
         <input
           value={values.name}
           onChange={(e) => set("name", e.target.value)}
           placeholder="e.g. Safe Pump.fun gems"
-          className="w-full max-w-sm bg-kira-surface-2 border border-kira-border rounded px-3 py-2 text-sm text-kira-text placeholder:text-kira-text-dim focus:outline-none focus:border-kira-accent"
+          className="w-full max-w-sm bg-tt-bg-panel border border-tt-border rounded-md px-3 py-2 text-sm text-tt-fg placeholder:text-tt-fg-faint focus:outline-none focus:border-tt-brand"
         />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
         <div>
-          <div className="text-xs uppercase tracking-wide text-kira-text-dim mt-2 mb-1">On-chain</div>
+          <div className="text-xs uppercase tracking-wide text-tt-fg-faint mt-2 mb-1">On-chain</div>
           <NumberCriterion label="Min liquidity" value={values.minLiquidityUsd} onChange={(v) => set("minLiquidityUsd", v)} unit="USD" />
           <NumberCriterion label="Min FDV" value={values.minFdvUsd} onChange={(v) => set("minFdvUsd", v)} unit="USD" />
           <NumberCriterion label="Max FDV" value={values.maxFdvUsd} onChange={(v) => set("maxFdvUsd", v)} unit="USD" />
@@ -158,50 +158,50 @@ export default function FilterForm({
         </div>
 
         <div>
-          <div className="text-xs uppercase tracking-wide text-kira-text-dim mt-2 mb-1">Volume & social</div>
+          <div className="text-xs uppercase tracking-wide text-tt-fg-faint mt-2 mb-1">Volume & social</div>
           <NumberCriterion label="Min volume score" value={values.minVolumeScore} onChange={(v) => set("minVolumeScore", v)} unit="/100" />
           <NumberCriterion label="Min mindshare" value={values.minSocialMindshare} onChange={(v) => set("minSocialMindshare", v)} />
           <NumberCriterion label="Min sentiment" value={values.minSocialSentiment} onChange={(v) => set("minSocialSentiment", v)} unit="/10" />
           <NumberCriterion label="Min galaxy score" value={values.minGalaxyScore} onChange={(v) => set("minGalaxyScore", v)} unit="/100" />
 
-          <div className="text-xs uppercase tracking-wide text-kira-text-dim mt-4 mb-1">Roster overlay</div>
+          <div className="text-xs uppercase tracking-wide text-tt-fg-faint mt-4 mb-1">Roster overlay</div>
           <BoolCriterion label="Require a roster wallet buying" value={values.requireRosterWallet} onChange={(v) => set("requireRosterWallet", v)} />
           {values.requireRosterWallet && (
             <NumberCriterion label="Min roster wallets" value={values.minRosterWallets} onChange={(v) => set("minRosterWallets", v ?? 1)} />
           )}
 
-          <div className="text-xs uppercase tracking-wide text-kira-text-dim mt-4 mb-1">Launchpads</div>
+          <div className="text-xs uppercase tracking-wide text-tt-fg-faint mt-4 mb-1">Launchpads</div>
           <div className="flex flex-wrap gap-2">
             {LAUNCHPAD_OPTIONS.map((lp) => (
               <button
                 key={lp}
                 type="button"
                 onClick={() => toggleLaunchpad(lp)}
-                className={`text-xs px-2 py-1 rounded border ${
-                  values.launchpads.includes(lp) ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+                className={`text-xs px-2 py-1 rounded-md border ${
+                  values.launchpads.includes(lp) ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
                 }`}
               >
                 {lp}
               </button>
             ))}
           </div>
-          <p className="text-xs text-kira-text-dim mt-1">None selected = any launchpad.</p>
+          <p className="text-xs text-tt-fg-faint mt-1">None selected = any launchpad.</p>
         </div>
       </div>
 
-      <div className="mt-4 p-3 bg-kira-surface-2 border border-kira-border rounded text-xs text-kira-text-muted">
-        This filter would match tokens that are... <span className="text-kira-text">{previewText(values)}</span>
+      <div className="mt-4 p-3 bg-tt-bg-panel border border-tt-border rounded-md text-xs text-tt-fg-dim">
+        This filter would match tokens that are... <span className="text-tt-fg">{previewText(values)}</span>
       </div>
 
       <div className="flex gap-3 mt-4">
         <button
           onClick={() => onSubmit(values)}
           disabled={submitting || !values.name.trim()}
-          className="bg-kira-accent text-kira-bg rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+          className="bg-tt-brand text-tt-bg rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {submitting ? "Saving..." : initial ? "Save Changes" : "Create Filter"}
         </button>
-        <button onClick={onCancel} className="text-sm text-kira-text-muted hover:text-kira-text">
+        <button onClick={onCancel} className="text-sm text-tt-fg-dim hover:text-tt-fg">
           Cancel
         </button>
       </div>

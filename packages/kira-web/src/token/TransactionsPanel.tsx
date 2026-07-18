@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "../lib/api.js";
 
 const REFRESH_INTERVAL_MS = 30_000;
+const PAGE_SIZE = 20;
+const TAG_LABELS: Record<string, string> = {
+  smart_degen: "🧠",
+  renowned: "🎤",
+  rat_trader: "🐀",
+  bundler: "🤖",
+};
 
 interface RawTransaction {
   signature: string;
@@ -23,6 +30,9 @@ interface GroupedTrade {
   timestamp: number;
   timeAgo: string;
 }
+
+type SideFilter = "all" | "buy" | "sell";
+type SizeFilter = "all" | "whale" | "mid" | "small";
 
 /** One row per unique signature, not per token-transfer leg: a single swap can produce several
  * legs (router hops through intermediate accounts) that all share a signature. USD values of
@@ -49,14 +59,32 @@ function groupBySignature(transactions: RawTransaction[]): GroupedTrade[] {
   return Array.from(bySignature.values()).sort((a, b) => b.timestamp - a.timestamp);
 }
 
-export default function TransactionsPanel({ tokenAddress }: { tokenAddress: string }) {
+function matchesSize(usdValue: number, filter: SizeFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "whale") return usdValue >= 10_000;
+  if (filter === "mid") return usdValue >= 1_000 && usdValue < 10_000;
+  return usdValue < 1_000;
+}
+
+export default function TransactionsPanel({
+  tokenAddress,
+  walletTags,
+  onOpenProfile,
+}: {
+  tokenAddress: string;
+  walletTags?: Map<string, string[]>;
+  onOpenProfile?: (address: string) => void;
+}) {
   const [trades, setTrades] = useState<GroupedTrade[] | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [sideFilter, setSideFilter] = useState<SideFilter>("all");
+  const [sizeFilter, setSizeFilter] = useState<SizeFilter>("all");
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
-  function load() {
+  function load(currentLimit: number) {
     apiRequest<{ transactions: RawTransaction[]; source?: "unavailable" }>(
       "GET",
-      `/token/${tokenAddress}/transactions`,
+      `/token/${tokenAddress}/transactions?limit=${currentLimit}`,
     )
       .then((res) => {
         setUnavailable(res.source === "unavailable");
@@ -69,11 +97,18 @@ export default function TransactionsPanel({ tokenAddress }: { tokenAddress: stri
   }
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, REFRESH_INTERVAL_MS);
+    setLimit(PAGE_SIZE);
+    load(PAGE_SIZE);
+    const interval = setInterval(() => load(limit), REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenAddress]);
+
+  function loadMore() {
+    const next = limit + PAGE_SIZE;
+    setLimit(next);
+    load(next);
+  }
 
   if (trades === null) {
     return <div className="text-kira-text-muted text-sm py-8 text-center">Loading transactions...</div>;
@@ -87,27 +122,78 @@ export default function TransactionsPanel({ tokenAddress }: { tokenAddress: stri
     );
   }
 
+  const filtered = trades.filter(
+    (t) => (sideFilter === "all" || t.side === sideFilter) && matchesSize(t.usdValue, sizeFilter),
+  );
+
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md divide-y divide-kira-border">
-      {trades.map((t) => (
-        <div key={t.signature} className="flex items-center justify-between px-4 py-2 text-xs font-data">
-          <span className={`w-12 font-medium ${t.side === "buy" ? "text-kira-green" : "text-kira-red"}`}>
-            {t.side === "buy" ? "BUY" : "SELL"}
-          </span>
-          <span className={`w-20 ${t.side === "buy" ? "text-kira-green" : "text-kira-red"}`}>
-            ${t.usdValue >= 1000 ? `${(t.usdValue / 1000).toFixed(1)}K` : t.usdValue.toFixed(2)}
-          </span>
-          <a
-            href={`https://solscan.io/account/${t.walletFull}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex-1 text-kira-accent hover:underline"
-          >
-            {t.wallet}
-          </a>
-          <span className="text-kira-text-dim">{t.timeAgo}</span>
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+        <div className="flex gap-1">
+          {(["all", "buy", "sell"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setSideFilter(v)}
+              className={`px-2 py-1 rounded border ${
+                sideFilter === v ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+              }`}
+            >
+              {v === "all" ? "All" : v === "buy" ? "Buys" : "Sells"}
+            </button>
+          ))}
         </div>
-      ))}
+        <span className="text-kira-text-dim">|</span>
+        <div className="flex gap-1">
+          {(["all", "whale", "mid", "small"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setSizeFilter(v)}
+              className={`px-2 py-1 rounded border ${
+                sizeFilter === v ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+              }`}
+            >
+              {v === "all" ? "All sizes" : v === "whale" ? "Whales >$10K" : v === "mid" ? "Mid $1K-10K" : "Small <$1K"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-kira-surface border border-kira-border rounded-md divide-y divide-kira-border">
+        {filtered.map((t) => {
+          const tags = walletTags?.get(t.walletFull) ?? [];
+          return (
+            <div key={t.signature} className="flex items-center justify-between px-4 py-2 text-xs font-data">
+              <span className={`w-12 font-medium ${t.side === "buy" ? "text-kira-green" : "text-kira-red"}`}>
+                {t.side === "buy" ? "BUY" : "SELL"}
+              </span>
+              <span className={`w-20 ${t.side === "buy" ? "text-kira-green" : "text-kira-red"}`}>
+                ${t.usdValue >= 1000 ? `${(t.usdValue / 1000).toFixed(1)}K` : t.usdValue.toFixed(2)}
+              </span>
+              <button
+                onClick={() => onOpenProfile?.(t.walletFull)}
+                className="flex-1 text-left text-kira-accent hover:underline flex items-center gap-1"
+              >
+                {t.wallet}
+                {tags.map((tag) => (
+                  <span key={tag} title={tag}>
+                    {TAG_LABELS[tag] ?? ""}
+                  </span>
+                ))}
+              </button>
+              <span className="text-kira-text-dim">{t.timeAgo}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="text-center mt-3">
+        <button
+          onClick={loadMore}
+          className="text-xs px-3 py-1.5 rounded border border-kira-border text-kira-text-muted hover:text-kira-text hover:border-kira-accent"
+        >
+          Load more
+        </button>
+      </div>
     </div>
   );
 }

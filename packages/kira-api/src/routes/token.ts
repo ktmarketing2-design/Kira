@@ -151,7 +151,15 @@ router.get("/:address/transactions", async (req, res) => {
     }
 
     transactions.sort((a, b) => b.timestamp - a.timestamp);
-    const limited = transactions.slice(0, TX_RESULT_LIMIT);
+    // "Load more" support (Sprint 8 Part 6): clamp to what's already fetched from Helius
+    // (TX_HISTORY_LOOKBACK) rather than adding real cursor pagination -- this endpoint queries
+    // the mint's full signature history fresh on every call, so a bigger page is just a bigger
+    // slice of the same already-fetched array, not an extra network round trip.
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, TX_HISTORY_LOOKBACK)
+      : TX_RESULT_LIMIT;
+    const limited = transactions.slice(0, limit);
 
     if (limited.length === 0) {
       res.json({ transactions: [], source: "unavailable" });

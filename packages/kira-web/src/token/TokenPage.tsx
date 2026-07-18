@@ -6,22 +6,44 @@ import GeckoTerminalChart from "./GeckoTerminalChart.js";
 import SignalsChart from "./SignalsChart.js";
 import TransactionsPanel from "./TransactionsPanel.js";
 import BuyersSellersBar from "./BuyersSellersBar.js";
-import HoldersPanel from "./HoldersPanel.js";
-import SmartMoneyPanel from "./SmartMoneyPanel.js";
 import BuyTokenModal from "./BuyTokenModal.js";
 import WatchlistButton from "../shell/WatchlistButton.js";
 import ResearchNotesPanel from "./ResearchNotesPanel.js";
+import TokenHeader, { type TokenFullMeta } from "./TokenHeader.js";
+import {
+  HoldersTab,
+  TradersTab,
+  DevInfoTab,
+  StatsTab,
+  type TokenFullHolder,
+  type TokenFullDev,
+  type TokenFullPriceStats,
+  type TokenFullPool,
+  type TokenFullMetaStats,
+} from "./TokenFullTabs.js";
+import WalletProfileSlideOver from "../roster/WalletProfileSlideOver.js";
 import type { DdCard } from "../lib/types.js";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 type ChartMode = "gecko" | "signals";
 
-type SubTab = "transactions" | "holders" | "smartMoney";
+interface TokenFullResponse {
+  meta: TokenFullMeta & TokenFullMetaStats;
+  priceStats: TokenFullPriceStats;
+  pool: TokenFullPool | null;
+  holders: TokenFullHolder[];
+  traders: TokenFullHolder[];
+  dev: TokenFullDev;
+}
+
+type SubTab = "trades" | "holders" | "traders" | "devInfo" | "stats";
 const SUB_TABS: Array<{ id: SubTab; label: string }> = [
-  { id: "transactions", label: "📋 Transactions" },
+  { id: "trades", label: "📊 Trades" },
   { id: "holders", label: "👥 Holders" },
-  { id: "smartMoney", label: "🧠 Smart Money" },
+  { id: "traders", label: "🏆 Traders" },
+  { id: "devInfo", label: "👨‍💻 Dev Info" },
+  { id: "stats", label: "📈 Stats" },
 ];
 
 /**
@@ -85,20 +107,33 @@ function TokenChart({ address, card, chartMode, setChartMode }: {
   );
 }
 
-function TokenSubTabs({ address, card, subTab, setSubTab }: {
+function TokenSubTabs({
+  address,
+  card,
+  fullData,
+  subTab,
+  setSubTab,
+  onOpenProfile,
+}: {
   address: string;
   card: DdCard;
+  fullData: TokenFullResponse | null;
   subTab: SubTab;
   setSubTab: (t: SubTab) => void;
+  onOpenProfile: (address: string) => void;
 }) {
+  const walletTags = new Map<string, string[]>();
+  for (const h of fullData?.holders ?? []) if (h.address) walletTags.set(h.address, h.tags);
+  for (const t of fullData?.traders ?? []) if (t.address) walletTags.set(t.address, t.tags);
+
   return (
     <div className="mt-4">
-      <div className="flex gap-1 mb-3 border-b border-kira-border">
+      <div className="flex gap-1 mb-3 border-b border-kira-border overflow-x-auto">
         {SUB_TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setSubTab(t.id)}
-            className={`text-sm px-3 py-2 border-b-2 -mb-px ${
+            className={`text-sm px-3 py-2 border-b-2 -mb-px whitespace-nowrap ${
               subTab === t.id
                 ? "border-kira-accent text-kira-accent"
                 : "border-transparent text-kira-text-muted hover:text-kira-text"
@@ -109,7 +144,7 @@ function TokenSubTabs({ address, card, subTab, setSubTab }: {
         ))}
       </div>
 
-      {subTab === "transactions" && (
+      {subTab === "trades" && (
         <div className="space-y-4">
           <BuyersSellersBar
             buys24h={card.market.buys24h}
@@ -117,11 +152,33 @@ function TokenSubTabs({ address, card, subTab, setSubTab }: {
             buyVolume24hUsd={card.market.buyVolume24hUsd}
             sellVolume24hUsd={card.market.sellVolume24hUsd}
           />
-          <TransactionsPanel tokenAddress={address} />
+          <TransactionsPanel tokenAddress={address} walletTags={walletTags} onOpenProfile={onOpenProfile} />
         </div>
       )}
-      {subTab === "holders" && <HoldersPanel holders={card.topHolders} top10HolderPct={card.safety.top10HolderPct} />}
-      {subTab === "smartMoney" && <SmartMoneyPanel tokenAddress={address} />}
+      {subTab === "holders" &&
+        (fullData ? (
+          <HoldersTab holders={fullData.holders} onOpenProfile={onOpenProfile} />
+        ) : (
+          <div className="text-center text-kira-text-muted text-sm py-8">Loading holders...</div>
+        ))}
+      {subTab === "traders" &&
+        (fullData ? (
+          <TradersTab traders={fullData.traders} onOpenProfile={onOpenProfile} />
+        ) : (
+          <div className="text-center text-kira-text-muted text-sm py-8">Loading traders...</div>
+        ))}
+      {subTab === "devInfo" &&
+        (fullData ? (
+          <DevInfoTab dev={fullData.dev} />
+        ) : (
+          <div className="text-center text-kira-text-muted text-sm py-8">Loading dev info...</div>
+        ))}
+      {subTab === "stats" &&
+        (fullData ? (
+          <StatsTab priceStats={fullData.priceStats} pool={fullData.pool} metaStats={fullData.meta} />
+        ) : (
+          <div className="text-center text-kira-text-muted text-sm py-8">Loading stats...</div>
+        ))}
     </div>
   );
 }
@@ -174,11 +231,13 @@ export default function TokenPage() {
   const { address } = useParams<{ address: string }>();
   const navigate = useNavigate();
   const [card, setCard] = useState<DdCard | null>(null);
+  const [fullData, setFullData] = useState<TokenFullResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [chartMode, setChartMode] = useState<ChartMode>("gecko");
-  const [subTab, setSubTab] = useState<SubTab>("transactions");
+  const [subTab, setSubTab] = useState<SubTab>("trades");
+  const [profileAddress, setProfileAddress] = useState<string | null>(null);
   // Must run unconditionally on every render, before the early return below. It was placed
   // after that return originally, which is fine as long as this component only ever renders one
   // branch, but React Router can reuse the same component instance across the /token and
@@ -205,6 +264,22 @@ export default function TokenPage() {
 
   useEffect(() => {
     if (address) load(address);
+  }, [address]);
+
+  useEffect(() => {
+    setFullData(null); // same reasoning as the DD card: never show a previous token's data mid-switch
+    if (!address) return;
+    let cancelled = false;
+    apiRequest<TokenFullResponse>("GET", `/token/${address}/full`)
+      .then((res) => {
+        if (!cancelled) setFullData(res);
+      })
+      .catch(() => {
+        if (!cancelled) setFullData(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [address]);
 
   function handleSearch(e: FormEvent) {
@@ -241,12 +316,20 @@ export default function TokenPage() {
     <div>
       {loading && <div className="text-kira-text-muted text-sm mb-4">Generating Deep Dive...</div>}
       {error && <div className="text-kira-red text-sm mb-4">{error}</div>}
+      {card && fullData && <TokenHeader address={address} meta={fullData.meta} />}
       {card && (isDesktop ? (
         // Desktop: two columns, left 65% chart + sub-tabs, right 35% scrollable sidebar.
         <div className="grid grid-cols-[65fr_35fr] gap-6 items-start">
           <div>
             <TokenChart address={address} card={card} chartMode={chartMode} setChartMode={setChartMode} />
-            <TokenSubTabs address={address} card={card} subTab={subTab} setSubTab={setSubTab} />
+            <TokenSubTabs
+              address={address}
+              card={card}
+              fullData={fullData}
+              subTab={subTab}
+              setSubTab={setSubTab}
+              onOpenProfile={setProfileAddress}
+            />
           </div>
           <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
             <TokenSidebar card={card} address={address} onRefresh={() => load(address)} />
@@ -256,12 +339,21 @@ export default function TokenPage() {
         // Mobile: single column, chart first, then sub-tabs, then DD card.
         <div>
           <TokenChart address={address} card={card} chartMode={chartMode} setChartMode={setChartMode} />
-          <TokenSubTabs address={address} card={card} subTab={subTab} setSubTab={setSubTab} />
+          <TokenSubTabs
+            address={address}
+            card={card}
+            fullData={fullData}
+            subTab={subTab}
+            setSubTab={setSubTab}
+            onOpenProfile={setProfileAddress}
+          />
           <div className="mt-6">
             <TokenSidebar card={card} address={address} onRefresh={() => load(address)} />
           </div>
         </div>
       ))}
+
+      <WalletProfileSlideOver address={profileAddress} onClose={() => setProfileAddress(null)} />
     </div>
   );
 }

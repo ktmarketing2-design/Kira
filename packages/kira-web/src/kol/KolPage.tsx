@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
 import { useAppData } from "../shell/AppDataContext.js";
@@ -29,212 +29,6 @@ interface KolCall {
   return7d: number | null;
 }
 
-function truncate(address: string): string {
-  if (address.length <= 10) return address;
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
-}
-
-function pct(v: number | null): string {
-  return v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
-}
-
-function pctClass(v: number | null): string {
-  if (v == null) return "text-kira-text-dim";
-  return v >= 0 ? "text-kira-green" : "text-kira-red";
-}
-
-function WarmingUp() {
-  return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center">
-      <p className="text-kira-text text-sm">KOL tracker is warming up.</p>
-      <p className="text-kira-text-muted text-xs mt-1">
-        Historical data is being collected from 10 channels.
-        <br />
-        Check back in 24-48 hours for accuracy scores.
-      </p>
-    </div>
-  );
-}
-
-function Leaderboard({ sources }: { sources: KolSourceStats[] }) {
-  return (
-    <div className="bg-kira-surface border border-kira-border rounded-md overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-kira-text-muted border-b border-kira-border">
-            <th className="px-4 py-3 font-normal">Channel</th>
-            <th className="px-4 py-3 font-normal">Platform</th>
-            <th className="px-4 py-3 font-normal">Total Calls</th>
-            <th className="px-4 py-3 font-normal">Win Rate 24h</th>
-            <th className="px-4 py-3 font-normal">Win Rate 7d</th>
-            <th className="px-4 py-3 font-normal">Avg Return 24h</th>
-            <th className="px-4 py-3 font-normal">Last Call</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sources.map((s) => (
-            <tr key={s.id} className="border-b border-kira-border last:border-0">
-              <td className="px-4 py-3 text-kira-text">{s.displayName ?? s.channelIdentifier}</td>
-              <td className="px-4 py-3 text-kira-text-muted capitalize">{s.platform}</td>
-              <td className="px-4 py-3 font-data text-xs text-kira-text-muted">{s.totalCalls}</td>
-              <td className="px-4 py-3 font-data text-xs text-kira-text-muted">
-                {s.winRate24h != null ? `${Math.round(s.winRate24h * 100)}%` : "—"}
-              </td>
-              <td className="px-4 py-3 font-data text-xs text-kira-text-muted">
-                {s.winRate7d != null ? `${Math.round(s.winRate7d * 100)}%` : "—"}
-              </td>
-              <td className={`px-4 py-3 font-data text-xs ${pctClass(s.avgReturn24h)}`}>{pct(s.avgReturn24h)}</td>
-              <td className="px-4 py-3 text-kira-text-dim text-xs">
-                {s.lastCallAt ? new Date(s.lastCallAt).toLocaleDateString() : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CallHistory({ sources }: { sources: KolSourceStats[] }) {
-  const [calls, setCalls] = useState<KolCall[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [sourceTypeFilter, setSourceTypeFilter] = useState<"" | "telegram" | "gmgn_kol">("");
-  const [minReturn, setMinReturn] = useState("");
-  const [sortKey, setSortKey] = useState<keyof KolCall>("calledAt");
-  const [sortDir, setSortDir] = useState<1 | -1>(-1);
-
-  function load() {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (sourceFilter) params.set("source", sourceFilter);
-    if (sourceTypeFilter) params.set("sourceType", sourceTypeFilter);
-    if (minReturn) params.set("minReturn", minReturn);
-    apiRequest<{ calls: KolCall[] }>("GET", `/kol/calls?${params.toString()}`)
-      .then((res) => setCalls(res.calls))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(load, [sourceFilter, sourceTypeFilter, minReturn]);
-
-  const sourceName = (call: KolCall) =>
-    call.sourceType === "gmgn_kol" ? "GMGN KOL" : sources.find((s) => s.id === call.sourceId)?.displayName ?? "Unknown";
-
-  function sortBy(key: keyof KolCall) {
-    if (sortKey === key) setSortDir((d) => (d === 1 ? -1 : 1));
-    else {
-      setSortKey(key);
-      setSortDir(-1);
-    }
-  }
-
-  const sorted = [...calls].sort((a, b) => {
-    const av = a[sortKey];
-    const bv = b[sortKey];
-    if (av == null) return 1;
-    if (bv == null) return -1;
-    return av > bv ? sortDir : av < bv ? -sortDir : 0;
-  });
-
-  const columns: Array<{ key: keyof KolCall; label: string }> = [
-    { key: "calledAt", label: "Called At" },
-    { key: "priceAtCall", label: "Price at Call" },
-    { key: "return1h", label: "+1h%" },
-    { key: "return4h", label: "+4h%" },
-    { key: "return24h", label: "+24h%" },
-    { key: "return7d", label: "+7d%" },
-  ];
-
-  return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="flex gap-1">
-          {(["", "telegram", "gmgn_kol"] as const).map((v) => (
-            <button
-              key={v || "all"}
-              onClick={() => setSourceTypeFilter(v)}
-              className={`text-xs px-2 py-1 rounded border ${
-                sourceTypeFilter === v ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
-              }`}
-            >
-              {v === "" ? "All" : v === "telegram" ? "Telegram" : "GMGN"}
-            </button>
-          ))}
-        </div>
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          className="bg-kira-surface-2 border border-kira-border rounded px-2 py-1 text-xs text-kira-text"
-        >
-          <option value="">All sources</option>
-          {sources.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.displayName ?? s.channelIdentifier}
-            </option>
-          ))}
-        </select>
-        <input
-          type="number"
-          placeholder="Min 24h return %"
-          value={minReturn}
-          onChange={(e) => setMinReturn(e.target.value)}
-          className="bg-kira-surface-2 border border-kira-border rounded px-2 py-1 text-xs text-kira-text w-40"
-        />
-      </div>
-
-      {loading ? (
-        <div className="text-kira-text-muted text-sm">Loading...</div>
-      ) : sorted.length === 0 ? (
-        <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center text-kira-text-muted text-sm">
-          No calls recorded yet.
-        </div>
-      ) : (
-        <div className="bg-kira-surface border border-kira-border rounded-md overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-kira-text-muted border-b border-kira-border">
-                <th className="px-4 py-3 font-normal">Source</th>
-                <th className="px-4 py-3 font-normal">Token</th>
-                {columns.map((c) => (
-                  <th
-                    key={c.key}
-                    onClick={() => sortBy(c.key)}
-                    className="px-4 py-3 font-normal cursor-pointer hover:text-kira-text"
-                  >
-                    {c.label} {sortKey === c.key ? (sortDir === 1 ? "↑" : "↓") : ""}
-                  </th>
-                ))}
-                <th className="px-4 py-3 font-normal"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((c) => (
-                <tr key={c.id} className="border-b border-kira-border last:border-0">
-                  <td className="px-4 py-3 text-kira-text-muted">{sourceName(c)}</td>
-                  <td className="px-4 py-3 font-data text-xs text-kira-text">{truncate(c.tokenAddress)}</td>
-                  <td className="px-4 py-3 text-kira-text-dim text-xs">{new Date(c.calledAt).toLocaleString()}</td>
-                  <td className="px-4 py-3 font-data text-xs text-kira-text-muted">
-                    {c.priceAtCall != null ? `$${c.priceAtCall}` : "—"}
-                  </td>
-                  <td className={`px-4 py-3 font-data text-xs ${pctClass(c.return1h)}`}>{pct(c.return1h)}</td>
-                  <td className={`px-4 py-3 font-data text-xs ${pctClass(c.return4h)}`}>{pct(c.return4h)}</td>
-                  <td className={`px-4 py-3 font-data text-xs ${pctClass(c.return24h)}`}>{pct(c.return24h)}</td>
-                  <td className={`px-4 py-3 font-data text-xs ${pctClass(c.return7d)}`}>{pct(c.return7d)}</td>
-                  <td className="px-4 py-3">
-                    <Link to={`/token/${c.tokenAddress}`} className="text-kira-accent text-xs hover:underline">
-                      DD
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface UserKolSource {
   id: string;
   platform: string;
@@ -248,6 +42,28 @@ interface UserKolSource {
 
 const USER_KOL_SOURCE_LIMITS: Record<string, number> = { scout: 3, pro: 20, elite: Infinity, studio: Infinity };
 
+function truncate(address: string): string {
+  if (address.length <= 10) return address;
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+function pct(v: number | null): string {
+  return v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+}
+
+function pctClass(v: number | null): string {
+  if (v == null) return "text-tt-fg-faint";
+  return v >= 0 ? "text-tt-green" : "text-tt-red";
+}
+
+function winRateClass(v: number | null): string {
+  if (v == null) return "text-tt-fg-faint";
+  return v >= 0.5 ? "text-tt-green" : "text-tt-red";
+}
+
+/** Personal sources have no ingestion path yet (Sprint 9's KOL ingestion item builds that),
+ * so a user's own channels always show 0 calls / no win rate today -- not a bug in this page,
+ * just the real state of the data until that ships. */
 function MySources({ tier }: { tier: string }) {
   const [sources, setSources] = useState<UserKolSource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,40 +114,40 @@ function MySources({ tier }: { tier: string }) {
 
   return (
     <div>
-      <div className="bg-kira-surface border border-kira-border rounded-md p-4 mb-6">
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-4 mb-6">
         <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
           <input
             value={handle}
             onChange={(e) => setHandle(e.target.value)}
             placeholder="@channel"
-            className="flex-1 bg-kira-surface-2 border border-kira-border rounded px-3 py-2 text-xs font-data text-kira-text placeholder:text-kira-text-dim focus:outline-none focus:border-kira-accent"
+            className="flex-1 bg-transparent border border-tt-border rounded-md px-3 py-2.5 text-xs font-body text-tt-fg placeholder:text-tt-fg-faint focus:outline-none focus:border-tt-brand"
           />
           <button
             type="submit"
             disabled={submitting || (limit !== Infinity && sources.length >= limit)}
-            className="bg-kira-accent text-kira-bg rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="border border-tt-brand text-tt-brand font-body text-xs uppercase tracking-wide px-4 py-2.5 rounded-md hover:bg-tt-brand hover:text-tt-bg transition-colors disabled:opacity-50"
           >
             Add
           </button>
         </form>
-        {formError && <p className="text-xs text-kira-red mt-2">{formError}</p>}
-        <p className="text-xs text-kira-text-dim mt-2">
+        {formError && <p className="text-xs text-tt-red mt-2">{formError}</p>}
+        <p className="text-[10px] text-tt-fg-faint mt-2">
           {sources.length} of {limit === Infinity ? "unlimited" : limit} personal sources used ({tier})
         </p>
       </div>
 
       {loading ? (
-        <div className="text-kira-text-muted text-sm">Loading...</div>
+        <div className="text-tt-fg-dim text-sm">Loading...</div>
       ) : sources.length === 0 ? (
-        <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center">
-          <p className="text-kira-text text-sm">No personal channels added yet.</p>
-          <p className="text-kira-text-muted text-xs mt-1">Add a Telegram channel handle above to track it here.</p>
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center">
+          <p className="text-tt-fg text-sm">No personal channels added yet.</p>
+          <p className="text-tt-fg-dim text-xs mt-1">Add a Telegram channel handle above to track it here.</p>
         </div>
       ) : (
-        <div className="bg-kira-surface border border-kira-border rounded-md overflow-x-auto">
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-kira-text-muted border-b border-kira-border">
+              <tr className="text-left text-xs text-tt-fg-faint border-b border-tt-border">
                 <th className="px-4 py-3 font-normal">Channel</th>
                 <th className="px-4 py-3 font-normal">Calls</th>
                 <th className="px-4 py-3 font-normal">Last Call</th>
@@ -341,18 +157,15 @@ function MySources({ tier }: { tier: string }) {
             </thead>
             <tbody>
               {sources.map((s) => (
-                <tr key={s.id} className="border-b border-kira-border last:border-0">
-                  <td className="px-4 py-3 text-kira-text">{s.displayName ?? `@${s.channelIdentifier}`}</td>
-                  <td className="px-4 py-3 font-data text-xs text-kira-text-muted">{s.totalCalls}</td>
-                  <td className="px-4 py-3 text-kira-text-dim text-xs">
+                <tr key={s.id} className="border-b border-tt-border last:border-0">
+                  <td className="px-4 py-3 text-tt-fg">{s.displayName ?? `@${s.channelIdentifier}`}</td>
+                  <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">{s.totalCalls}</td>
+                  <td className="px-4 py-3 text-tt-fg-faint text-xs">
                     {s.lastCallAt ? new Date(s.lastCallAt).toLocaleDateString() : "—"}
                   </td>
-                  <td className="px-4 py-3 text-kira-text-dim text-xs">{new Date(s.addedAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-tt-fg-faint text-xs">{new Date(s.addedAt).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => void handleRemove(s.id)}
-                      className="text-kira-red text-xs hover:underline"
-                    >
+                    <button onClick={() => void handleRemove(s.id)} className="text-tt-red text-xs hover:underline">
                       Remove
                     </button>
                   </td>
@@ -366,58 +179,382 @@ function MySources({ tier }: { tier: string }) {
   );
 }
 
-export default function KolPage() {
-  const { me } = useAppData();
-  const [tab, setTab] = useState<"leaderboard" | "history" | "mysources">("leaderboard");
-  const [sources, setSources] = useState<KolSourceStats[]>([]);
-  const [warmingUp, setWarmingUp] = useState(false);
+interface ConsensusToken {
+  tokenAddress: string;
+  sourceCount: number;
+  firstCallAt: string;
+  priceAtFirstCall: number | null;
+  return24h: number | null;
+  return7d: number | null;
+}
+
+/** "Call History" surfaces consensus calls -- tokens 2+ sources agreed on -- not the raw
+ * per-channel feed. Grouped client-side from the existing /kol/calls data (curated channels +
+ * GMGN KOL feed, the only calls that exist today; personal-source calls don't exist until the
+ * ingestion work ships), so this needs no new backend route. */
+function CallHistory() {
+  const [calls, setCalls] = useState<KolCall[]>([]);
   const [loading, setLoading] = useState(true);
+  const [minSources, setMinSources] = useState(2);
 
   useEffect(() => {
-    apiRequest<{ sources: KolSourceStats[]; totalCalls: number; warmingUp: boolean }>("GET", "/kol/sources")
-      .then((res) => {
-        setSources(res.sources);
-        setWarmingUp(res.warmingUp);
+    setLoading(true);
+    apiRequest<{ calls: KolCall[] }>("GET", "/kol/calls")
+      .then((res) => setCalls(res.calls))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const consensusTokens = useMemo<ConsensusToken[]>(() => {
+    const byToken = new Map<string, KolCall[]>();
+    for (const c of calls) {
+      const list = byToken.get(c.tokenAddress) ?? [];
+      list.push(c);
+      byToken.set(c.tokenAddress, list);
+    }
+
+    const rows: ConsensusToken[] = [];
+    for (const [tokenAddress, tokenCalls] of byToken) {
+      const distinctSources = new Set(tokenCalls.map((c) => (c.sourceType === "gmgn_kol" ? "gmgn_kol" : c.sourceId)));
+      if (distinctSources.size < minSources) continue;
+
+      const sorted = [...tokenCalls].sort((a, b) => new Date(a.calledAt).getTime() - new Date(b.calledAt).getTime());
+      const first = sorted[0];
+      rows.push({
+        tokenAddress,
+        sourceCount: distinctSources.size,
+        firstCallAt: first.calledAt,
+        priceAtFirstCall: first.priceAtCall,
+        return24h: first.return24h,
+        return7d: first.return7d,
+      });
+    }
+
+    return rows.sort((a, b) => b.sourceCount - a.sourceCount);
+  }, [calls, minSources]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs text-tt-fg-dim">Min sources:</span>
+        {[2, 3, 5].map((n) => (
+          <button
+            key={n}
+            onClick={() => setMinSources(n)}
+            className={`text-xs px-2.5 py-1 rounded-md border ${
+              minSources === n ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
+            }`}
+          >
+            {n}+
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="text-tt-fg-dim text-sm">Loading...</div>
+      ) : consensusTokens.length === 0 ? (
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm">
+          No tokens called by {minSources}+ sources yet.
+        </div>
+      ) : (
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-tt-fg-faint border-b border-tt-border">
+                <th className="px-4 py-3 font-normal">Token</th>
+                <th className="px-4 py-3 font-normal">Called By</th>
+                <th className="px-4 py-3 font-normal">First Call</th>
+                <th className="px-4 py-3 font-normal">Price at Call</th>
+                <th className="px-4 py-3 font-normal">+24h%</th>
+                <th className="px-4 py-3 font-normal">+7d%</th>
+                <th className="px-4 py-3 font-normal"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {consensusTokens.map((t) => (
+                <tr key={t.tokenAddress} className="border-b border-tt-border last:border-0">
+                  <td className="px-4 py-3 font-body text-xs text-tt-fg">{truncate(t.tokenAddress)}</td>
+                  <td className="px-4 py-3 text-tt-brand text-xs">{t.sourceCount} sources</td>
+                  <td className="px-4 py-3 text-tt-fg-faint text-xs">{new Date(t.firstCallAt).toLocaleString()}</td>
+                  <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">
+                    {t.priceAtFirstCall != null ? `$${t.priceAtFirstCall}` : "—"}
+                  </td>
+                  <td className={`px-4 py-3 font-body text-xs ${pctClass(t.return24h)}`}>{pct(t.return24h)}</td>
+                  <td className={`px-4 py-3 font-body text-xs ${pctClass(t.return7d)}`}>{pct(t.return7d)}</td>
+                  <td className="px-4 py-3">
+                    <Link to={`/token/${t.tokenAddress}`} className="text-tt-brand text-xs hover:underline">
+                      DD
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const ALERT_OPTIONS = ["New Call", "Call Update", "Win/Loss Result"];
+
+interface RowPrefs {
+  bubbles: boolean;
+  toast: boolean;
+  alertTypes: Set<string>;
+  sound: "Silent" | "Chime" | "Alert Tone";
+}
+
+function defaultPrefs(): RowPrefs {
+  return { bubbles: true, toast: true, alertTypes: new Set(ALERT_OPTIONS), sound: "Silent" };
+}
+
+/** Per-row notification prefs (Chart Bubbles/Toast/Alerts/Sound), borrowed from the Trojan
+ * wallet-tracker interaction pattern per the redesign guide. Local UI state only -- the mockup's
+ * own version has no backend behind these either, and wiring real per-source notification
+ * delivery is a backend feature this design-only sprint isn't building. */
+function LeaderboardRow({ source, prefs, onChange }: { source: KolSourceStats; prefs: RowPrefs; onChange: (p: RowPrefs) => void }) {
+  const [ddOpen, setDdOpen] = useState(false);
+
+  function toggleAlertType(opt: string) {
+    const next = new Set(prefs.alertTypes);
+    if (next.has(opt)) next.delete(opt);
+    else next.add(opt);
+    onChange({ ...prefs, alertTypes: next });
+  }
+
+  return (
+    <tr className="border-b border-tt-border last:border-0">
+      <td className="px-4 py-3 text-tt-fg">{source.displayName ?? source.channelIdentifier}</td>
+      <td className="px-4 py-3 text-[#6FA8DC] text-xs capitalize">{source.platform}</td>
+      <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">{source.totalCalls}</td>
+      <td className={`px-4 py-3 font-body text-xs ${winRateClass(source.winRate24h)}`}>
+        {source.winRate24h != null ? `${Math.round(source.winRate24h * 100)}%` : "—"}
+      </td>
+      <td className={`px-4 py-3 font-body text-xs ${winRateClass(source.winRate7d)}`}>
+        {source.winRate7d != null ? `${Math.round(source.winRate7d * 100)}%` : "—"}
+      </td>
+      <td className={`px-4 py-3 font-body text-xs ${pctClass(source.avgReturn24h)}`}>{pct(source.avgReturn24h)}</td>
+      <td className="px-4 py-3">
+        <span
+          onClick={() => onChange({ ...prefs, bubbles: !prefs.bubbles })}
+          className={`inline-block px-3 py-1 text-[10px] rounded-md border cursor-pointer text-center min-w-[34px] ${
+            prefs.bubbles ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-faint"
+          }`}
+        >
+          {prefs.bubbles ? "On" : "Off"}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span
+          onClick={() => onChange({ ...prefs, toast: !prefs.toast })}
+          className={`inline-block px-3 py-1 text-[10px] rounded-md border cursor-pointer text-center min-w-[34px] ${
+            prefs.toast ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-faint"
+          }`}
+        >
+          {prefs.toast ? "On" : "Off"}
+        </span>
+      </td>
+      <td className="px-4 py-3 relative">
+        <button
+          onClick={() => setDdOpen((o) => !o)}
+          className="border border-tt-border text-tt-fg-dim text-xs px-3 py-1.5 rounded-md flex items-center gap-2"
+        >
+          {prefs.alertTypes.size === ALERT_OPTIONS.length ? "All Actions" : `${prefs.alertTypes.size} selected`} ▾
+        </button>
+        {ddOpen && (
+          <div className="absolute top-full left-0 mt-1 z-20 bg-tt-bg-raised border border-tt-border rounded-md min-w-[160px]">
+            {ALERT_OPTIONS.map((opt) => (
+              <div
+                key={opt}
+                onClick={() => toggleAlertType(opt)}
+                className="flex justify-between px-3 py-2 text-xs text-tt-fg-dim hover:bg-tt-bg hover:text-tt-fg cursor-pointer"
+              >
+                <span>{opt}</span>
+                {prefs.alertTypes.has(opt) && <span className="text-tt-green">✓</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <select
+          value={prefs.sound}
+          onChange={(e) => onChange({ ...prefs, sound: e.target.value as RowPrefs["sound"] })}
+          className="bg-transparent border border-tt-border text-tt-fg-faint text-xs px-2 py-1.5 rounded-md"
+        >
+          <option>Silent</option>
+          <option>Chime</option>
+          <option>Alert Tone</option>
+        </select>
+      </td>
+    </tr>
+  );
+}
+
+function Leaderboard({
+  curatedSources,
+  personalSources,
+  includeKira,
+}: {
+  curatedSources: KolSourceStats[];
+  personalSources: UserKolSource[];
+  includeKira: boolean;
+}) {
+  const [prefsById, setPrefsById] = useState<Record<string, RowPrefs>>({});
+
+  function prefsFor(id: string): RowPrefs {
+    return prefsById[id] ?? defaultPrefs();
+  }
+
+  const personalAsStats: KolSourceStats[] = personalSources.map((s) => ({
+    id: s.id,
+    platform: s.platform,
+    displayName: s.displayName,
+    channelIdentifier: s.channelIdentifier,
+    active: s.active,
+    totalCalls: s.totalCalls,
+    winRate24h: null,
+    winRate7d: null,
+    avgReturn24h: null,
+    lastCallAt: s.lastCallAt,
+  }));
+
+  function renderTable(rows: KolSourceStats[]) {
+    return (
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-tt-fg-faint border-b border-tt-border">
+              <th className="px-4 py-3 font-normal">Channel</th>
+              <th className="px-4 py-3 font-normal">Platform</th>
+              <th className="px-4 py-3 font-normal">Total Calls</th>
+              <th className="px-4 py-3 font-normal">Win Rate 24h</th>
+              <th className="px-4 py-3 font-normal">Win Rate 7d</th>
+              <th className="px-4 py-3 font-normal">Avg Return 24h</th>
+              <th className="px-4 py-3 font-normal">Chart Bubbles</th>
+              <th className="px-4 py-3 font-normal">Toast</th>
+              <th className="px-4 py-3 font-normal">Alerts</th>
+              <th className="px-4 py-3 font-normal">Sound</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => (
+              <LeaderboardRow
+                key={s.id}
+                source={s}
+                prefs={prefsFor(s.id)}
+                onChange={(p) => setPrefsById((prev) => ({ ...prev, [s.id]: p }))}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {personalAsStats.length === 0 ? (
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm">
+          No personal sources yet. Add channels from the My Sources tab.
+        </div>
+      ) : (
+        renderTable(personalAsStats)
+      )}
+
+      {includeKira && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2">Kira Tracked Channels</div>
+          {renderTable(curatedSources)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WarmingUp() {
+  return (
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center">
+      <p className="text-tt-fg text-sm">KOL tracker is warming up.</p>
+      <p className="text-tt-fg-dim text-xs mt-1">
+        Historical data is being collected from 10 channels.
+        <br />
+        Check back in 24-48 hours for accuracy scores.
+      </p>
+    </div>
+  );
+}
+
+type Tab = "mysources" | "history" | "leaderboard";
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: "mysources", label: "My Sources" },
+  { id: "history", label: "Call History" },
+  { id: "leaderboard", label: "Leaderboard" },
+];
+
+export default function KolPage() {
+  const { me } = useAppData();
+  const [tab, setTab] = useState<Tab>("mysources");
+  const [curatedSources, setCuratedSources] = useState<KolSourceStats[]>([]);
+  const [personalSources, setPersonalSources] = useState<UserKolSource[]>([]);
+  const [warmingUp, setWarmingUp] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [includeKira, setIncludeKira] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      apiRequest<{ sources: KolSourceStats[]; totalCalls: number; warmingUp: boolean }>("GET", "/kol/sources"),
+      apiRequest<{ sources: UserKolSource[] }>("GET", "/kol/user-sources"),
+    ])
+      .then(([curated, personal]) => {
+        setCuratedSources(curated.sources);
+        setWarmingUp(curated.warmingUp);
+        setPersonalSources(personal.sources);
       })
       .finally(() => setLoading(false));
   }, []);
 
   return (
     <div>
-      <h1 className="font-display text-lg text-kira-text mb-4">KOL Tracker</h1>
-
-      <div className="flex gap-1 mb-4">
-        <button
-          onClick={() => setTab("leaderboard")}
-          className={`text-xs px-3 py-1.5 rounded border ${tab === "leaderboard" ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"}`}
-        >
-          Leaderboard
-        </button>
-        <button
-          onClick={() => setTab("history")}
-          className={`text-xs px-3 py-1.5 rounded border ${tab === "history" ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"}`}
-        >
-          Call History
-        </button>
-        <button
-          onClick={() => setTab("mysources")}
-          className={`text-xs px-3 py-1.5 rounded border ${tab === "mysources" ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"}`}
-        >
-          My Sources
-        </button>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="font-display uppercase text-lg text-tt-fg">KOL Tracker</h1>
+        <label className="flex items-center gap-2 text-xs text-tt-fg-dim cursor-pointer">
+          Include Kira's Channels
+          <span
+            onClick={() => setIncludeKira((v) => !v)}
+            className={`inline-block px-3 py-1 text-[10px] rounded-md border ${
+              includeKira ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-faint"
+            }`}
+          >
+            {includeKira ? "On" : "Off"}
+          </span>
+        </label>
       </div>
 
-      {tab === "mysources" ? (
-        <MySources tier={me?.tier ?? "scout"} />
-      ) : loading ? (
-        <div className="text-kira-text-muted text-sm">Loading...</div>
-      ) : warmingUp ? (
-        <WarmingUp />
-      ) : tab === "leaderboard" ? (
-        <Leaderboard sources={sources} />
-      ) : (
-        <CallHistory sources={sources} />
-      )}
+      <div className="flex gap-1 mb-4">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`text-xs px-3 py-1.5 rounded-md border ${
+              tab === t.id ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "mysources" && <MySources tier={me?.tier ?? "scout"} />}
+      {tab === "history" && <CallHistory />}
+      {tab === "leaderboard" &&
+        (loading ? (
+          <div className="text-tt-fg-dim text-sm">Loading...</div>
+        ) : warmingUp && includeKira ? (
+          <WarmingUp />
+        ) : (
+          <Leaderboard curatedSources={curatedSources} personalSources={personalSources} includeKira={includeKira} />
+        ))}
     </div>
   );
 }

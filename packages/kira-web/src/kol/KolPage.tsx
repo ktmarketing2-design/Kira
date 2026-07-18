@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { Bell } from "lucide-react";
 import { apiRequest, ApiError } from "../lib/api.js";
 import { useAppData } from "../shell/AppDataContext.js";
 
@@ -500,15 +501,29 @@ export default function KolPage() {
   const [warmingUp, setWarmingUp] = useState(false);
   const [loading, setLoading] = useState(true);
   const [includeKira, setIncludeKira] = useState(false);
-  const [newCallsLast24h, setNewCallsLast24h] = useState(0);
+  const [recentCalls, setRecentCalls] = useState<KolCall[]>([]);
+  const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+  const newCallsLast24h = recentCalls.length;
 
   useEffect(() => {
     apiRequest<{ calls: KolCall[] }>("GET", "/kol/calls")
       .then((res) => {
         const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-        setNewCallsLast24h(res.calls.filter((c) => new Date(c.calledAt).getTime() >= cutoff).length);
+        setRecentCalls(res.calls.filter((c) => new Date(c.calledAt).getTime() >= cutoff));
       })
-      .catch(() => setNewCallsLast24h(0));
+      .catch(() => setRecentCalls([]));
+  }, []);
+
+  // Contextual bell: this page's bell shows/opens KOL calls (kira_kol_calls), not the global
+  // kira_alerts feed the TopBar bell shows -- KOL calls aren't alerts and never will be, so the
+  // global bell showing them here would just be wrong, not merely inconsistent styling.
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   useEffect(() => {
@@ -529,11 +544,41 @@ export default function KolPage() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <h1 className="font-display uppercase text-lg text-tt-fg">KOL Tracker</h1>
-          {newCallsLast24h > 0 && (
-            <span className="bg-tt-red text-tt-bg text-[10px] leading-none rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
-              {newCallsLast24h}
-            </span>
-          )}
+          <div className="relative" ref={bellRef}>
+            <button onClick={() => setBellOpen((o) => !o)} className="relative text-tt-fg-dim hover:text-tt-fg">
+              <Bell size={16} />
+              {newCallsLast24h > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-tt-red text-tt-bg text-[10px] leading-none rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                  {newCallsLast24h > 99 ? "99+" : newCallsLast24h}
+                </span>
+              )}
+            </button>
+            {bellOpen && (
+              <div className="absolute left-0 top-full mt-2 w-80 bg-tt-bg-raised border border-tt-border rounded-md z-30 max-h-96 overflow-y-auto">
+                <div className="px-4 py-2.5 border-b border-tt-border text-[10px] uppercase tracking-wide text-tt-fg-faint">
+                  KOL Calls · Last 24h
+                </div>
+                {recentCalls.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-xs text-tt-fg-faint">No new calls in the last 24h.</div>
+                ) : (
+                  recentCalls.slice(0, 10).map((c) => (
+                    <Link
+                      key={c.id}
+                      to={`/token/${c.tokenAddress}`}
+                      onClick={() => setBellOpen(false)}
+                      className="block px-4 py-2.5 border-b border-tt-border last:border-0 cursor-pointer hover:bg-tt-bg-panel"
+                    >
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-tt-fg-dim">{c.sourceType === "gmgn_kol" ? "GMGN KOL" : "Telegram"}</span>
+                        <span className="text-tt-fg-faint text-[10px]">{new Date(c.calledAt).toLocaleTimeString()}</span>
+                      </div>
+                      <div className="text-tt-fg text-xs font-data">{truncate(c.tokenAddress)}</div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <label className="flex items-center gap-2 text-xs text-tt-fg-dim cursor-pointer">
           Include Kira's Channels

@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { Bell } from "lucide-react";
 import { apiRequest, ApiError } from "../lib/api.js";
 import { useAppData } from "../shell/AppDataContext.js";
 import FilterForm, { type FilterFormValues } from "./FilterForm.js";
@@ -112,16 +114,58 @@ export default function FiltersPage() {
   const activeCount = filters.filter((f) => f.active).length;
   const atCapacity = limit !== Infinity && activeCount >= limit;
 
+  // Contextual bell: scoped to signal_filter_match only, not the full liveAlerts feed the TopBar
+  // bell shows -- a user watching this page cares about their filter matches, not cluster buys.
+  const filterMatchAlerts = liveAlerts.filter((a) => a.type === "signal_filter_match");
+  const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2.5">
           <h1 className="font-display uppercase text-lg text-tt-fg">Signal Filters</h1>
-          {liveAlerts.filter((a) => a.type === "signal_filter_match").length > 0 && (
-            <span className="bg-tt-red text-tt-bg text-[10px] leading-none rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
-              {liveAlerts.filter((a) => a.type === "signal_filter_match").length}
-            </span>
-          )}
+          <div className="relative" ref={bellRef}>
+            <button onClick={() => setBellOpen((o) => !o)} className="relative text-tt-fg-dim hover:text-tt-fg">
+              <Bell size={16} />
+              {filterMatchAlerts.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-tt-red text-tt-bg text-[10px] leading-none rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                  {filterMatchAlerts.length > 99 ? "99+" : filterMatchAlerts.length}
+                </span>
+              )}
+            </button>
+            {bellOpen && (
+              <div className="absolute left-0 top-full mt-2 w-80 bg-tt-bg-raised border border-tt-border rounded-md z-30 max-h-96 overflow-y-auto">
+                <div className="px-4 py-2.5 border-b border-tt-border text-[10px] uppercase tracking-wide text-tt-fg-faint">
+                  Signal Filter Matches
+                </div>
+                {filterMatchAlerts.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-xs text-tt-fg-faint">No filter matches yet.</div>
+                ) : (
+                  filterMatchAlerts.slice(0, 10).map((a) => (
+                    <Link
+                      key={a.id}
+                      to={`/token/${a.token_address}`}
+                      onClick={() => setBellOpen(false)}
+                      className="block px-4 py-2.5 border-b border-tt-border last:border-0 cursor-pointer hover:bg-tt-bg-panel"
+                    >
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-tt-fg-dim">${a.token_symbol ?? "?"}</span>
+                        <span className="text-tt-fg-faint text-[10px]">{new Date(a.created_at).toLocaleTimeString()}</span>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
         {!formOpen && (
           <button

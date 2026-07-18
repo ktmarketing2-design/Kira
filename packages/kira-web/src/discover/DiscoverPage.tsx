@@ -80,28 +80,7 @@ function riskScore(t: DiscoverToken): number {
   return Math.max(0, score);
 }
 
-/** Sunflower/phyllotaxis spiral (golden-angle placement): a simple, dependency-free way to scatter
- * N bubbles around a center point with reasonable spacing at any N, without a real force-directed
- * layout library. Radius grows with sqrt(volume proxy) same shape as the mockup's own sizing. */
-function layoutBubbles(tokens: DiscoverToken[], width: number, height: number): PositionedToken[] {
-  const cx = width / 2;
-  const cy = height / 2;
-  const maxLiquidity = Math.max(1, ...tokens.map((t) => t.liquidity ?? 0));
-  const spacing = Math.min(width, height) / (2 * Math.max(4, Math.sqrt(tokens.length) * 2));
 
-  return tokens.map((t, i) => {
-    const angle = i * 2.399963; // golden angle in radians
-    const dist = spacing * Math.sqrt(i + 1);
-    const liquidityFrac = (t.liquidity ?? 0) / maxLiquidity;
-    const r = 14 + Math.sqrt(liquidityFrac) * 34;
-    return {
-      ...t,
-      x: cx + dist * Math.cos(angle),
-      y: cy + dist * Math.sin(angle),
-      r,
-    };
-  });
-}
 
 function bubbleColor(t: DiscoverToken): string {
   if ((t.ratTraderRate ?? 0) > 0.3 || t.isHoneypot) return "#FF3B3B";

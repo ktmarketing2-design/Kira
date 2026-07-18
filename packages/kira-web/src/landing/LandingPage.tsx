@@ -1,225 +1,254 @@
-const PROBLEMS = [
-  {
-    quote: "Five tabs open.\nStill late to the move.",
-    body: "Tracking wallets across Birdeye, DexScreener, Telegram, and Twitter simultaneously is how you miss the entry. Kira watches everything so you don't have to.",
-  },
-  {
-    quote: "Volume looks real.\nIt isn't.",
-    body: "Paid volume leaves fingerprints. FDV vs liquidity ratios, timing entropy, wallet cycling patterns. Kira's Volume Authenticity Engine scores every token before you ape.",
-  },
-  {
-    quote: "KOL called it.\nBut did they own it first?",
-    body: "Track which callers are actually right, not just loud. Kira scores every call against real on-chain price data and builds a credibility record over time.",
-  },
-];
-
-const STEPS = [
-  { n: 1, title: "CLUSTER ALERT", body: "2+ of your tracked wallets\nbuy the same token" },
-  { n: 2, title: "TOKEN DEEP DIVE", body: "Auto-generated in seconds.\nRug score, volume score,\nsocial signals, market data." },
-  { n: 3, title: "VOLUME CHECK", body: "Is the volume real?\nAuthenticity score with\nfull signal breakdown." },
-  { n: 4, title: "SMART MONEY", body: "Are labeled wallets\nalso entering?\nCross-confirmed signal." },
-  { n: 5, title: "DECIDE", body: "All signals in one place.\nYour call. Your edge." },
-];
+import { Link } from "react-router-dom";
 
 const FEATURES = [
   {
-    icon: "🔍",
+    num: "01",
     title: "Wallet Cluster Alerts",
-    body: "Track wallets you respect. When 2 or more buy the same token within your time window, you get alerted immediately on Telegram and web. First-mover detection included.",
+    body: "Get notified the moment 2 or more tracked wallets buy the same token. Follow the smart money before it moves the chart.",
   },
   {
-    icon: "🛡",
+    num: "02",
     title: "Token Deep Dive",
-    body: "One-click due diligence. Rug score, honeypot check, LP lock status, deployer history, top holder concentration. Under 10 seconds, every time.",
+    body: "Full rug check on any contract: LP status, holder concentration, mint authority, and history in one view.",
   },
   {
-    icon: "📊",
-    title: "Volume Authenticity Engine",
-    body: "Six-signal scoring system detects wash trading, bot volume, and manufactured hype before you read the chart wrong.",
+    num: "03",
+    title: "Volume Authenticity",
+    body: "A 0-100 score that separates real demand from wash trading and bot volume, computed in real time.",
   },
   {
-    icon: "📡",
-    title: "Social Signals",
-    body: "Know when your tracked KOL channels have called a token. See DexScreener trending status. Built from real ingestion data, not guesswork.",
+    num: "04",
+    title: "KOL Call Tracking",
+    body: "See what top callers are posting across Telegram the moment it happens, with historical hit-rate attached.",
+  },
+  {
+    num: "05",
+    title: "Smart Money Digest",
+    body: "Daily rollup of what the wallets that matter are accumulating, distributing, or rotating into.",
+  },
+  {
+    num: "06",
+    title: "Chart Studio",
+    body: "Overlay cluster activity and KOL calls directly on price action. See the signal, not just the candle.",
   },
 ];
 
-const PRICING_ROWS: Array<[string, string, string, string]> = [
-  ["Wallet Roster", "5 wallets", "50 wallets", "Unlimited"],
-  ["Cluster threshold", "3+ wallets", "2+ wallets", "2+ wallets"],
-  ["Token Deep Dives", "10/day", "Unlimited", "Unlimited"],
-  ["Alerts", "Web only", "Telegram + Web", "Telegram + Web"],
-  ["Signal Filters", "—", "5 filters", "Unlimited"],
-  ["KOL Tracker", "View only", "20 accounts", "Unlimited"],
+const TIERS = [
+  {
+    name: "Scout",
+    price: "$0",
+    features: ["Basic wallet alerts", "Token deep dive lookups", "Telegram bot access", "Delayed KOL feed"],
+    featured: false,
+    cta: "Get Started",
+  },
+  {
+    name: "Pro",
+    price: "$29",
+    features: ["Real-time cluster alerts", "Volume authenticity scoring", "Live KOL call tracking", "Daily smart money digest"],
+    featured: true,
+    cta: "Upgrade to Pro",
+  },
+  {
+    name: "Elite",
+    price: "$79",
+    features: ["Everything in Pro", "Chart Studio overlays", "Priority signal delivery", "Custom wallet lists"],
+    featured: false,
+    cta: "Go Elite",
+  },
 ];
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-display text-2xl sm:text-3xl text-kira-text text-center mb-10">{children}</h2>;
+function Logo({ className = "" }: { className?: string }) {
+  return (
+    <Link to="/" className={`flex items-center gap-2.5 ${className}`}>
+      <img src="/kira-logo.jpeg" alt="Kira by Ceronix Labs" className="h-6 rounded-[3px]" />
+    </Link>
+  );
 }
 
 export default function LandingPage() {
   return (
-    <div className="bg-kira-bg text-kira-text">
-      {/* Section 1: Hero */}
-      <section className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden kira-grid-bg px-4">
-        <div className="kira-scanlines absolute inset-0 pointer-events-none" />
-        <div className="relative text-center max-w-2xl">
-          <div className="font-display text-4xl sm:text-6xl tracking-widest mb-1">KIRA</div>
-          <div className="text-kira-text-muted text-sm mb-8">by Ceronix Labs</div>
+    <div className="bg-tt-bg text-tt-fg font-body text-[13px] tracking-[0.02em] leading-relaxed min-h-screen">
+      <div className="tt-noise" />
+      <div className="tt-scanlines" />
 
-          <p className="text-xl sm:text-2xl text-kira-text mb-2">See what others miss.</p>
-          <p className="text-xl sm:text-2xl text-kira-accent mb-6">Before they miss it.</p>
-
-          <p className="text-kira-text-muted text-sm sm:text-base leading-relaxed mb-8 max-w-xl mx-auto">
-            Wallet cluster alerts, volume authenticity, on-chain DD, smart money tracking, and social signals.
-            Unified.
-          </p>
-
-          <div className="flex items-center justify-center gap-4 mb-10">
-            <a
-              href="/login"
-              className="bg-kira-accent text-kira-bg font-medium text-sm px-5 py-2.5 rounded hover:opacity-90 transition-opacity"
-            >
-              Start Free
-            </a>
-            <a
-              href="#demo"
-              className="text-kira-text text-sm px-5 py-2.5 rounded border border-kira-border hover:border-kira-accent transition-colors"
-            >
-              View Demo →
-            </a>
-          </div>
-
-          <div className="font-data text-xs text-kira-text-dim">
-            12,847 tokens analyzed &nbsp;•&nbsp; 3,291 cluster alerts fired &nbsp;•&nbsp; 847 rug risks flagged
-          </div>
-        </div>
-      </section>
-
-      {/* Section 2: The Problem */}
-      <section className="py-24 px-4 border-t border-kira-border">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-          {PROBLEMS.map((p) => (
-            <div
-              key={p.quote}
-              className="bg-kira-surface border border-kira-border rounded-md p-6 hover:bg-kira-surface-2 transition-colors"
-            >
-              <p className="font-display text-lg text-kira-text whitespace-pre-line mb-3">{p.quote}</p>
-              <div className="text-kira-border mb-3">——————————————</div>
-              <p className="text-kira-text-muted text-sm leading-relaxed">{p.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Section 3: How It Works */}
-      <section id="demo" className="py-24 px-4 border-t border-kira-border">
-        <SectionHeading>How It Works</SectionHeading>
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-stretch justify-between gap-6">
-          {STEPS.map((s, i) => (
-            <div key={s.n} className="flex md:flex-col items-center gap-4 md:gap-3 flex-1">
-              <div className="text-center flex-1">
-                <div className="font-data text-kira-accent text-xs mb-1">{s.n}.</div>
-                <div className="font-display text-sm text-kira-text mb-2">{s.title}</div>
-                <p className="text-kira-text-muted text-xs whitespace-pre-line leading-relaxed">{s.body}</p>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div className="text-kira-border text-xl md:rotate-90 shrink-0">↓</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Section 4: Feature Highlights */}
-      <section className="py-24 px-4 border-t border-kira-border">
-        <SectionHeading>Built for the way you actually trade</SectionHeading>
-        <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="bg-kira-surface border border-kira-border rounded-md p-6">
-              <div className="text-2xl mb-2">{f.icon}</div>
-              <div className="font-display text-sm text-kira-text mb-2">{f.title}</div>
-              <p className="text-kira-text-muted text-sm leading-relaxed">{f.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Section 5: Pricing */}
-      <section className="py-24 px-4 border-t border-kira-border">
-        <SectionHeading>Pricing</SectionHeading>
-        <div className="max-w-4xl mx-auto overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr>
-                <th className="text-left p-3 text-kira-text-muted font-normal"></th>
-                <th className="p-3 text-kira-text font-display border-b border-kira-border">Scout</th>
-                <th className="p-3 text-kira-accent font-display border-b border-kira-border">Pro</th>
-                <th className="p-3 text-kira-yellow font-display border-b border-kira-border">Elite</th>
-              </tr>
-            </thead>
-            <tbody>
-              {PRICING_ROWS.map((row) => (
-                <tr key={row[0]} className="border-b border-kira-border">
-                  <td className="p-3 text-kira-text-muted">{row[0]}</td>
-                  <td className="p-3 text-center text-kira-text font-data text-xs">{row[1]}</td>
-                  <td className="p-3 text-center text-kira-text font-data text-xs">{row[2]}</td>
-                  <td className="p-3 text-center text-kira-text font-data text-xs">{row[3]}</td>
-                </tr>
-              ))}
-              <tr>
-                <td className="p-3"></td>
-                <td className="p-4 text-center">
-                  <a href="/login" className="text-xs border border-kira-border rounded px-3 py-2 inline-block hover:border-kira-accent">
-                    Get Started Free
-                  </a>
-                </td>
-                <td className="p-4 text-center">
-                  <a href="/login" className="text-xs bg-kira-accent text-kira-bg rounded px-3 py-2 inline-block hover:opacity-90">
-                    Start Pro Trial
-                  </a>
-                </td>
-                <td className="p-4 text-center">
-                  <a href="/login" className="text-xs border border-kira-yellow text-kira-yellow rounded px-3 py-2 inline-block hover:bg-kira-yellow/10">
-                    Go Elite
-                  </a>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Section 6: Built by Ceronix Labs */}
-      <section className="py-24 px-4 border-t border-kira-border text-center">
-        <p className="text-kira-text-muted text-sm max-w-lg mx-auto leading-relaxed">
-          Kira is built and operated by Ceronix Labs, a product studio building intelligence tools for the next
-          generation of traders.
-        </p>
-        <a href="https://ceronix.ai" target="_blank" rel="noreferrer" className="text-kira-accent text-sm hover:underline mt-2 inline-block">
-          ceronix.ai
-        </a>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-10 px-4 border-t border-kira-border text-center">
-        <div className="font-display text-sm text-kira-text mb-1">Kira by Ceronix Labs</div>
-        <a
-          href="https://t.me/KiraByCeronixBot"
-          target="_blank"
-          rel="noreferrer"
-          className="text-kira-accent text-xs hover:underline"
-        >
-          @KiraByCeronixBot on Telegram
-        </a>
-        <div className="flex items-center justify-center gap-4 mt-4 text-xs text-kira-text-muted">
-          <span className="opacity-60">Docs</span>
-          <span className="opacity-60">Twitter</span>
-          <a href="https://t.me/KiraByCeronixBot" target="_blank" rel="noreferrer" className="hover:text-kira-text">
+      <nav className="border-b border-tt-border px-6 md:px-12 py-5 flex justify-between items-center sticky top-0 bg-tt-bg/92 backdrop-blur-sm z-50">
+        <Logo />
+        <div className="hidden md:flex gap-9 items-center">
+          <Link to="/signals" className="text-tt-fg-dim text-xs tracking-[0.08em] uppercase hover:text-tt-fg transition-colors">
+            Signals
+          </Link>
+          <Link to="/roster" className="text-tt-fg-dim text-xs tracking-[0.08em] uppercase hover:text-tt-fg transition-colors">
+            Wallets
+          </Link>
+          <a href="#pricing" className="text-tt-fg-dim text-xs tracking-[0.08em] uppercase hover:text-tt-fg transition-colors">
+            Pricing
+          </a>
+          <span className="text-tt-fg-dim text-xs tracking-[0.08em] uppercase opacity-50 cursor-not-allowed">Docs</span>
+          <a
+            href="https://t.me/kira_ceronix_bot"
+            target="_blank"
+            rel="noreferrer"
+            className="text-tt-fg-dim text-xs tracking-[0.08em] uppercase hover:text-tt-fg transition-colors"
+          >
             Telegram
           </a>
         </div>
-        <p className="text-kira-text-dim text-[11px] mt-4">Not financial advice. Do your own research.</p>
+        <Link
+          to="/login"
+          className="font-body text-xs tracking-[0.08em] uppercase px-5 py-2.5 rounded-md border border-tt-brand text-tt-brand hover:bg-tt-brand hover:text-tt-bg transition-colors"
+        >
+          Launch App
+        </Link>
+      </nav>
+
+      <div className="border-b border-tt-border px-6 md:px-12 py-3.5 flex gap-12 overflow-hidden text-[11px] text-tt-fg-dim tracking-[0.08em] whitespace-nowrap">
+        <span>
+          WALLET_CLUSTER <span className="text-tt-green">▲ 3 tracked wallets bought $BONK</span>
+        </span>
+        <span className="hidden sm:inline">
+          RUG_CHECK <span className="text-tt-red">▼ LP unlocked flag on $PUMP</span>
+        </span>
+        <span className="hidden md:inline">
+          SMART_MONEY <span className="text-tt-green">▲ 9 wallets in accumulation</span>
+        </span>
+        <span className="hidden lg:inline">
+          VOLUME_SCORE <span className="text-tt-green">▲ 92/100 authentic on $WIF</span>
+        </span>
+      </div>
+
+      <div className="border-b border-tt-border px-6 md:px-12 py-16 md:py-24 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-12 lg:gap-16">
+        <div>
+          <div className="inline-flex items-center gap-2 border border-tt-border rounded-md px-3 py-1.5 mb-7 text-[11px] tracking-[0.1em] uppercase text-tt-fg-dim">
+            <span className="text-tt-brand">●</span> Live on Solana Mainnet
+          </div>
+          <h1 className="font-display uppercase text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-[-0.02em] mb-7">
+            See what
+            <br />
+            smart wallets
+            <br />
+            <span className="text-tt-brand">see first.</span>
+          </h1>
+          <p className="text-tt-fg-dim text-[15px] max-w-lg mb-9 leading-relaxed">
+            Kira tracks wallet clusters, scores volume authenticity, and flags rugs in real time so you're not trading
+            blind. Built for Solana degens who want an edge, not noise.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <Link
+              to="/login"
+              className="font-body text-xs tracking-[0.08em] uppercase px-5 py-2.5 rounded-md border border-tt-brand text-tt-brand hover:bg-tt-brand hover:text-tt-bg transition-colors"
+            >
+              Start Free — Scout Tier
+            </Link>
+            <a
+              href="https://t.me/kira_ceronix_bot"
+              target="_blank"
+              rel="noreferrer"
+              className="font-body text-xs tracking-[0.08em] uppercase px-5 py-2.5 rounded-md border border-tt-fg text-tt-fg hover:bg-tt-fg hover:text-tt-bg transition-colors"
+            >
+              Open Telegram Bot
+            </a>
+          </div>
+        </div>
+
+        <div className="border border-tt-border bg-tt-bg-raised rounded-md p-5 self-start">
+          <div className="flex justify-between border-b border-tt-border pb-3 mb-4 text-[11px] text-tt-fg-dim tracking-[0.1em]">
+            <span>CLUSTER_ALERT</span>
+            <span>LIVE</span>
+          </div>
+          <div className="flex justify-between py-2.5 border-b border-tt-border text-xs">
+            <span className="text-tt-fg-faint text-[11px]">3 WALLETS &gt; $WIF</span>
+            <span className="text-tt-green">+18.4%</span>
+          </div>
+          <div className="flex justify-between py-2.5 border-b border-tt-border text-xs">
+            <span className="text-tt-fg-faint text-[11px]">RUG_SCORE $PUMP</span>
+            <span className="text-tt-red">HIGH RISK</span>
+          </div>
+          <div className="flex justify-between py-2.5 border-b border-tt-border text-xs">
+            <span className="text-tt-fg-faint text-[11px]">VOL_AUTH $BONK</span>
+            <span className="text-tt-green">92 / 100</span>
+          </div>
+          <div className="flex justify-between py-2.5 border-b border-tt-border text-xs">
+            <span className="text-tt-fg-faint text-[11px]">KOL_CALL @spydefi</span>
+            <span className="text-tt-green">$MOON 4m ago</span>
+          </div>
+          <div className="flex justify-between py-2.5 text-xs">
+            <span className="text-tt-fg-faint text-[11px]">SMART_MONEY IDX</span>
+            <span className="text-tt-green">ACCUMULATING</span>
+          </div>
+        </div>
+      </div>
+
+      <section className="px-6 md:px-12 py-16 md:py-24 border-b border-tt-border">
+        <div className="flex justify-between items-end mb-12">
+          <h2 className="font-display uppercase text-3xl md:text-4xl tracking-[-0.01em]">Intelligence layer</h2>
+          <div className="text-xs text-tt-fg-faint tracking-[0.1em] hidden sm:block">[ 01 — 06 ]</div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-tt-border border border-tt-border rounded-md overflow-hidden">
+          {FEATURES.map((f) => (
+            <div key={f.num} className="bg-tt-bg p-7">
+              <div className="text-[11px] text-tt-fg-faint mb-5 tracking-[0.1em]">{f.num} /</div>
+              <h3 className="font-display uppercase text-base mb-3 tracking-[0.01em]">{f.title}</h3>
+              <p className="text-tt-fg-dim text-[13px] leading-relaxed">{f.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="pricing" className="px-6 md:px-12 py-16 md:py-24 border-b border-tt-border">
+        <div className="flex justify-between items-end mb-12">
+          <h2 className="font-display uppercase text-3xl md:text-4xl tracking-[-0.01em]">Access tiers</h2>
+          <div className="text-xs text-tt-fg-faint tracking-[0.1em] hidden sm:block">[ SCOUT / PRO / ELITE ]</div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-tt-border border border-tt-border rounded-md overflow-hidden">
+          {TIERS.map((t) => (
+            <div key={t.name} className={`relative p-9 ${t.featured ? "bg-tt-bg-raised" : "bg-tt-bg"}`}>
+              {t.featured && (
+                <div className="absolute top-0 left-7 -translate-y-full bg-tt-brand text-tt-bg text-[10px] tracking-[0.1em] px-2 py-1 rounded-t">
+                  [ RECOMMENDED ]
+                </div>
+              )}
+              <div className="font-display uppercase text-lg mb-2">{t.name}</div>
+              <div className="text-3xl text-tt-brand font-semibold mb-6">
+                {t.price}
+                <span className="text-xs text-tt-fg-dim">/mo</span>
+              </div>
+              <ul className="mb-7">
+                {t.features.map((li) => (
+                  <li key={li} className="text-xs text-tt-fg-dim py-2 border-t border-tt-border flex gap-2.5">
+                    <span className="text-tt-brand">&gt;</span>
+                    {li}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/login"
+                className={`block w-full text-center font-body text-xs tracking-[0.08em] uppercase px-5 py-2.5 rounded-md border transition-colors ${
+                  t.featured
+                    ? "border-tt-brand text-tt-brand hover:bg-tt-brand hover:text-tt-bg"
+                    : "border-tt-fg text-tt-fg hover:bg-tt-fg hover:text-tt-bg"
+                }`}
+              >
+                {t.cta}
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="px-6 md:px-12 py-20 md:py-24 text-center">
+        <h2 className="font-display uppercase text-3xl md:text-5xl tracking-[-0.01em] mb-5">Stop trading blind.</h2>
+        <p className="text-tt-fg-dim mb-9 text-sm">Free to start. No credit card. Live in under 60 seconds.</p>
+        <Link
+          to="/login"
+          className="inline-block font-body text-xs tracking-[0.08em] uppercase px-5 py-2.5 rounded-md border border-tt-brand text-tt-brand hover:bg-tt-brand hover:text-tt-bg transition-colors"
+        >
+          Launch Kira Free
+        </Link>
+      </div>
+
+      <footer className="px-6 md:px-12 py-10 flex flex-col sm:flex-row gap-2 justify-between text-[11px] text-tt-fg-faint tracking-[0.08em]">
+        <span>KIRA BY CERONIX LABS © 2026</span>
+        <span>SOLANA MAINNET / STATUS: OPERATIONAL</span>
       </footer>
     </div>
   );

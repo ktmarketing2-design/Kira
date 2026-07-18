@@ -13,9 +13,45 @@
   --color-kira-text-muted: #64748b;
   --color-kira-text-dim: #334155;
 
-  --font-display: "DM Mono", ui-monospace, monospace;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-data: "JetBrains Mono", ui-monospace, monospace;
+  /* ==========================================================================
+   * Sprint 9 "Tactical Telemetry" redesign tokens (kira-redesign-guide.md v1.3).
+   * Namespaced tt- rather than replacing the kira-* set above: pages migrate to
+   * this system one at a time per the Sprint 9 build order, so both token sets
+   * have to coexist until every page has been converted. Once migration is
+   * complete the kira-* set above can be deleted.
+   *
+   * Colors match the redesign guide's table exactly, which itself matches the
+   * mockup HTML files' embedded CSS -- NOT the abbreviated "locked" color list
+   * in the Sprint 9 prompt (which gives red as #EF4444 / green as #22C55E,
+   * conflicting with both the guide and every mockup's actual values of
+   * #FF3B3B / #4AF626). The mockups are the stated source of truth, so their
+   * values win here.
+   * ========================================================================== */
+  --color-tt-bg: #0a0a0a;
+  --color-tt-bg-raised: #121212;
+  --color-tt-bg-panel: #151515;
+  --color-tt-fg: #eaeaea;
+  --color-tt-fg-dim: #8a8a85;
+  --color-tt-fg-faint: #4a4a47;
+  --color-tt-border: #262624;
+  --color-tt-brand: #7b7fd4;
+  --color-tt-green: #4af626;
+  --color-tt-red: #ff3b3b;
+  --color-tt-amber: #e6a817;
+
+  /* System-wide ~7px soft rounding on buttons/cards/panels/inputs/tabs/pills (guide v1.3).
+     Deliberately NOT applied to hairline dividers or table row borders -- that's a
+     per-element choice made when building each component, not something a token can enforce. */
+  --radius-md: 7px;
+
+  /* Two typefaces total, used everywhere once a page is migrated: Archivo Black for
+     display/headings, IBM Plex Mono for body/UI/data. Replaces the old DM Mono / Inter /
+     JetBrains Mono trio globally (font tokens aren't page-scoped like colors/radius are --
+     changing them here changes every `font-display`/`font-body`/`font-data` class site at once,
+     including on pages not yet visually migrated, which is expected and desired). */
+  --font-display: "Archivo Black", sans-serif;
+  --font-body: "IBM Plex Mono", ui-monospace, monospace;
+  --font-data: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 :root {
@@ -30,16 +66,16 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-kira-bg);
-  color: var(--color-kira-text);
+  background: var(--color-tt-bg);
+  color: var(--color-tt-fg);
   font-family: var(--font-body);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: var(--color-kira-accent);
-  color: var(--color-kira-bg);
+  background: var(--color-tt-brand);
+  color: var(--color-tt-bg);
 }
 
 /* Subtle scan-line texture, used behind the landing hero. CSS-only, no images. */
@@ -58,6 +94,39 @@ body {
     linear-gradient(rgba(124, 111, 205, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(124, 111, 205, 0.08) 1px, transparent 1px);
   background-size: 48px 48px;
+}
+
+/* Tactical Telemetry marketing-page-only texture (guide: "omit from the app/dashboard where it
+   would interfere with reading live data over long sessions"). ~3-4% opacity noise + scanlines. */
+.tt-noise {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  z-index: 40;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.tt-scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 39;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 4px);
+}
+
+/* Live status pulse, used on the logo dot / live indicators across the redesign. */
+@keyframes tt-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.tt-pulse {
+  animation: tt-pulse 2s infinite;
 }
 
 /* Thin, custom scrollbar to match the dense terminal aesthetic. */

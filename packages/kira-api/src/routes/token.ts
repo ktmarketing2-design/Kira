@@ -4,7 +4,7 @@ import { redis } from "../lib/redis.js";
 import { supabase } from "../lib/supabase.js";
 import { ddQueue, ddQueueEvents, volumeQueue, volumeQueueEvents } from "../lib/queue.js";
 import { requireDdQuota } from "../middleware/tier.js";
-import { helius, jupiter, geckoterminal, type HeliusConfig } from "@ceronix/kira-shared";
+import { helius, jupiter, geckoterminal, gmgnApi, type HeliusConfig } from "@ceronix/kira-shared";
 
 const router = Router();
 
@@ -400,6 +400,204 @@ router.delete("/:address/notes/:id", async (req, res) => {
   }
 
   res.status(204).send();
+});
+
+// ============================================================================
+// Token Full Terminal (Sprint 8 Part 6): aggregated GMGN token data for the token page's
+// Trades/Holders/Traders/Dev Info/Stats tabs. Field names and quirks (marcket_cap typo,
+// amount_percentage as a 0-1 fraction, dev address at info.dev.creator_address not info.creator,
+// unix-seconds timestamps) come from Antigravity's live-verified report
+// (kira-sprint8-part6-code.md), not re-tested independently.
+// ============================================================================
+
+const TOKEN_FULL_CACHE_TTL_SECONDS = 120;
+
+interface RawHolderOrTrader {
+  address?: string;
+  usd_value?: number | string | null;
+  amount_percentage?: number | string | null;
+  amount_cur?: number | string | null;
+  cost?: number | string | null;
+  cost_cur?: number | string | null;
+  accu_cost?: number | string | null;
+  realized_profit?: number | string | null;
+  unrealized_profit?: number | string | null;
+  profit?: number | string | null;
+  buy_volume_cur?: number | string | null;
+  sell_volume_cur?: number | string | null;
+  buy_tx_count_cur?: number | null;
+  sell_tx_count_cur?: number | null;
+  netflow_usd?: number | string | null;
+  wallet_tag_v2?: string | null;
+}
+
+function numOrNull(v: number | string | null | undefined): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+router.get("/:address/full", async (req, res) => {
+  const { address } = req.params;
+  const cacheKey = `token:full:${address}`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    res.json(JSON.parse(cached));
+    return;
+  }
+
+  const [info, pool, holders, smartDegens, renowned, ratTraders, bundlers, traders] = await Promise.all([
+    gmgnApi.getTokenInfo(address),
+    gmgnApi.getTokenPool(address),
+    gmgnApi.getTokenHolders(address),
+    gmgnApi.getTokenHolders(address, { tag: "smart_degen" }),
+    gmgnApi.getTokenHolders(address, { tag: "renowned" }),
+    gmgnApi.getTokenHolders(address, { tag: "rat_trader" }),
+    gmgnApi.getTokenHolders(address, { tag: "bundler" }),
+    gmgnApi.getTokenTraders(address),
+  ]);
+
+  const infoRecord = (info ?? {}) as Record<string, any>;
+  const devAddress: string | undefined = infoRecord.dev?.creator_address;
+  const devHistory = devAddress ? await gmgnApi.getCreatorHistory(devAddress) : null;
+
+  const taggedAddress = (list: unknown[]) => new Set((list as RawHolderOrTrader[]).map((h) => h.address));
+  const smartDegenAddresses = taggedAddress(smartDegens);
+  const renownedAddresses = taggedAddress(renowned);
+  const ratTraderAddresses = taggedAddress(ratTraders);
+  const bundlerAddresses = taggedAddress(bundlers);
+
+  function getHolderTags(walletAddress: string | undefined): string[] {
+    if (!walletAddress) return [];
+    const tags: string[] = [];
+    if (smartDegenAddresses.has(walletAddress)) tags.push("smart_degen");
+    if (renownedAddresses.has(walletAddress)) tags.push("renowned");
+    if (ratTraderAddresses.has(walletAddress)) tags.push("rat_trader");
+    if (bundlerAddresses.has(walletAddress)) tags.push("bundler");
+    return tags;
+  }
+
+  function mapHolderOrTrader(h: RawHolderOrTrader) {
+    return {
+      address: h.address ?? null,
+      usdValue: numOrNull(h.usd_value),
+      amountPercentage: numOrNull(h.amount_percentage),
+      balance: numOrNull(h.amount_cur),
+      costBasis: numOrNull(h.cost ?? h.cost_cur ?? h.accu_cost),
+      realizedProfit: numOrNull(h.realized_profit),
+      unrealizedProfit: numOrNull(h.unrealized_profit),
+      totalProfit: numOrNull(h.profit),
+      buyVolume: numOrNull(h.buy_volume_cur),
+      sellVolume: numOrNull(h.sell_volume_cur),
+      buyTxCount: h.buy_tx_count_cur ?? null,
+      sellTxCount: h.sell_tx_count_cur ?? null,
+      netflowUsd: numOrNull(h.netflow_usd),
+      walletTag: h.wallet_tag_v2 ?? null,
+      tags: getHolderTags(h.address),
+    };
+  }
+
+  const devHistoryRecord = devHistory as Record<string, any> | null;
+
+  const result = {
+    address,
+    meta: {
+      symbol: infoRecord.symbol ?? null,
+      name: infoRecord.name ?? null,
+      logo: infoRecord.logo ?? null,
+      decimals: infoRecord.decimals ?? null,
+      totalSupply: numOrNull(infoRecord.total_supply),
+      circulatingSupply: numOrNull(infoRecord.circulating_supply),
+      holderCount: infoRecord.holder_count ?? null,
+      launchpad: infoRecord.launchpad ?? infoRecord.launchpad_platform ?? null,
+      createdAt: infoRecord.creation_timestamp ?? null,
+      openedAt: infoRecord.open_timestamp ?? null,
+      migratedAt: infoRecord.migrated_timestamp ?? null,
+      athPrice: numOrNull(infoRecord.ath_price),
+      lockedRatio: numOrNull(infoRecord.locked_ratio),
+      visitingCount: infoRecord.visiting_count ?? null,
+      social: {
+        twitter: infoRecord.link?.twitter ?? null,
+        telegram: infoRecord.link?.telegram ?? null,
+        website: infoRecord.link?.website ?? null,
+      },
+    },
+    priceStats: {
+      current: numOrNull(infoRecord.price?.price),
+      change1m: numOrNull(infoRecord.price?.price_1m),
+      change5m: numOrNull(infoRecord.price?.price_5m),
+      change1h: numOrNull(infoRecord.price?.price_1h),
+      change6h: numOrNull(infoRecord.price?.price_6h),
+      change24h: numOrNull(infoRecord.price?.price_24h),
+      buys1m: infoRecord.price?.buys_1m ?? null,
+      buys5m: infoRecord.price?.buys_5m ?? null,
+      buys1h: infoRecord.price?.buys_1h ?? null,
+      buys6h: infoRecord.price?.buys_6h ?? null,
+      buys24h: infoRecord.price?.buys_24h ?? null,
+      sells1m: infoRecord.price?.sells_1m ?? null,
+      sells5m: infoRecord.price?.sells_5m ?? null,
+      sells1h: infoRecord.price?.sells_1h ?? null,
+      sells6h: infoRecord.price?.sells_6h ?? null,
+      sells24h: infoRecord.price?.sells_24h ?? null,
+    },
+    pool: pool
+      ? {
+          poolAddress: (pool as Record<string, any>).pool_address ?? null,
+          exchange: (pool as Record<string, any>).exchange ?? null,
+          liquidity: numOrNull((pool as Record<string, any>).liquidity),
+          baseReserve: numOrNull((pool as Record<string, any>).base_reserve),
+          quoteReserve: numOrNull((pool as Record<string, any>).quote_reserve),
+          baseReserveValue: numOrNull((pool as Record<string, any>).base_reserve_value),
+          quoteReserveValue: numOrNull((pool as Record<string, any>).quote_reserve_value),
+          initialLiquidity: numOrNull((pool as Record<string, any>).initial_liquidity),
+          feeRatio: numOrNull((pool as Record<string, any>).fee_ratio),
+          createdAt: (pool as Record<string, any>).creation_timestamp ?? null,
+          quoteSymbol: (pool as Record<string, any>).quote_symbol ?? null,
+        }
+      : null,
+    holders: (holders as RawHolderOrTrader[]).map(mapHolderOrTrader),
+    traders: (traders as RawHolderOrTrader[]).map(mapHolderOrTrader),
+    dev: {
+      address: devAddress ?? null,
+      tokenBalance: numOrNull(infoRecord.dev?.creator_token_balance),
+      tokenStatus: infoRecord.dev?.creator_token_status ?? null,
+      top10HolderRate: numOrNull(infoRecord.dev?.top_10_holder_rate),
+      fundSource: infoRecord.dev?.fund_from ?? null,
+      fundSourceTimestamp: infoRecord.dev?.fund_from_ts ?? null,
+      tokensCreated: infoRecord.dev?.creator_open_count ?? null,
+      athTokenInfo: infoRecord.dev?.ath_token_info ?? null,
+      history: devHistoryRecord
+        ? {
+            totalCreated: devHistoryRecord.inner_count ?? null,
+            openCount: devHistoryRecord.open_count ?? null,
+            openRatio: numOrNull(devHistoryRecord.open_ratio),
+            lastCreatedAt: devHistoryRecord.last_create_timestamp ?? null,
+            athToken: devHistoryRecord.creator_ath_info ?? null,
+            tokens: ((devHistoryRecord.tokens ?? []) as any[]).map((t) => ({
+              address: t.token_address ?? null,
+              symbol: t.symbol ?? null,
+              logo: t.logo ?? null,
+              createdAt: t.create_timestamp ?? null,
+              isOpen: t.is_open ?? null,
+              // Confirmed: this field is misspelled "marcket_cap" in GMGN's response.
+              marketCap: numOrNull(t.market_cap ?? t.marcket_cap),
+              athMarketCap: numOrNull(t.token_ath_mc),
+              holders: t.holders ?? null,
+              liquidity: numOrNull(t.pool_liquidity),
+              launchpad: t.launchpad_platform ?? null,
+              isPump: t.is_pump ?? null,
+              bundlerRate: numOrNull(t.bundler_rate),
+            })),
+          }
+        : null,
+    },
+    tagsSummary: infoRecord.wallet_tags_stat ?? null,
+    updatedAt: Date.now(),
+  };
+
+  await redis.set(cacheKey, JSON.stringify(result), "EX", TOKEN_FULL_CACHE_TTL_SECONDS);
+  res.json(result);
 });
 
 export default router;

@@ -1,7 +1,7 @@
-import { Bell, LogOut } from "lucide-react";
-import { Link } from "react-router-dom";
+import { LogOut } from "lucide-react";
 import { useAuth } from "../auth/useAuth.js";
 import { useAppData } from "./AppDataContext.js";
+import NotificationBell from "./NotificationBell.js";
 
 const tierColors: Record<string, string> = {
   scout: "text-tt-fg-dim border-tt-border",
@@ -12,7 +12,7 @@ const tierColors: Record<string, string> = {
 
 export default function TopBar() {
   const { signOut } = useAuth();
-  const { me, unreadCount, markAllRead } = useAppData();
+  const { me } = useAppData();
   const tier = me?.tier ?? "scout";
 
   return (
@@ -23,14 +23,7 @@ export default function TopBar() {
         {tier}
       </span>
 
-      <Link to="/alerts" onClick={markAllRead} className="relative text-tt-fg-dim hover:text-tt-fg">
-        <Bell size={18} />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 bg-tt-red text-tt-bg text-[10px] leading-none rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
-      </Link>
+      <NotificationBell />
 
       <button
         onClick={() => void signOut()}

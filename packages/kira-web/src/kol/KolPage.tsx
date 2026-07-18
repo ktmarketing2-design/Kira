@@ -500,6 +500,16 @@ export default function KolPage() {
   const [warmingUp, setWarmingUp] = useState(false);
   const [loading, setLoading] = useState(true);
   const [includeKira, setIncludeKira] = useState(false);
+  const [newCallsLast24h, setNewCallsLast24h] = useState(0);
+
+  useEffect(() => {
+    apiRequest<{ calls: KolCall[] }>("GET", "/kol/calls")
+      .then((res) => {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        setNewCallsLast24h(res.calls.filter((c) => new Date(c.calledAt).getTime() >= cutoff).length);
+      })
+      .catch(() => setNewCallsLast24h(0));
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -517,7 +527,14 @@ export default function KolPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="font-display uppercase text-lg text-tt-fg">KOL Tracker</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="font-display uppercase text-lg text-tt-fg">KOL Tracker</h1>
+          {newCallsLast24h > 0 && (
+            <span className="bg-tt-red text-tt-bg text-[10px] leading-none rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
+              {newCallsLast24h}
+            </span>
+          )}
+        </div>
         <label className="flex items-center gap-2 text-xs text-tt-fg-dim cursor-pointer">
           Include Kira's Channels
           <span

@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase.js";
 import { apiRequest } from "../lib/api.js";
 import { useAuth } from "../auth/useAuth.js";
 import type { Alert, MeResponse } from "../lib/types.js";
+import { playAlertSound } from "../lib/alertSound.js";
 
 interface AppDataState {
   me: MeResponse | null;
@@ -49,6 +50,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const alert = payload.payload as Alert;
         setLiveAlerts((prev) => [alert, ...prev].slice(0, MAX_LIVE_ALERTS));
         setUnreadCount((prev) => prev + 1);
+        playAlertSound();
       })
       .subscribe();
 

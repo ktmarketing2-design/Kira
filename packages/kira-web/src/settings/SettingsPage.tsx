@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../auth/useAuth.js";
 import { useAppData } from "../shell/AppDataContext.js";
 import { apiRequest } from "../lib/api.js";
+import { alertSoundsEnabled, setAlertSoundsEnabled } from "../lib/alertSound.js";
 
 const WINDOW_OPTIONS = [
   { label: "1h", value: 60 },
@@ -30,6 +31,7 @@ export default function SettingsPage() {
   const [minUsd, setMinUsd] = useState(me?.settings?.min_usd_per_buy ?? 100);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [soundsOn, setSoundsOn] = useState(alertSoundsEnabled());
 
   async function saveSettings() {
     setSaving(true);
@@ -92,6 +94,23 @@ export default function SettingsPage() {
 
       <Section title="Alert Settings">
         <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-kira-text-muted mb-1">Alert Sounds</label>
+            <button
+              onClick={() => {
+                const next = !soundsOn;
+                setSoundsOn(next);
+                setAlertSoundsEnabled(next);
+              }}
+              className={`text-xs px-3 py-1.5 rounded border ${
+                soundsOn ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+              }`}
+            >
+              {soundsOn ? "On" : "Off"}
+            </button>
+            <p className="text-xs text-kira-text-dim mt-1">Play a short ping in the browser when a new alert arrives.</p>
+          </div>
+
           <div>
             <label className="block text-xs text-kira-text-muted mb-1">Cluster threshold</label>
             <div className="flex gap-2">

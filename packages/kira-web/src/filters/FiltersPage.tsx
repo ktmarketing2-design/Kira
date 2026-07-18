@@ -42,7 +42,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function FiltersPage() {
-  const { me } = useAppData();
+  const { me, liveAlerts } = useAppData();
   const [filters, setFilters] = useState<SignalFilter[]>([]);
   const [matches, setMatches] = useState<MatchAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,7 +115,14 @@ export default function FiltersPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <h1 className="font-display uppercase text-lg text-tt-fg">Signal Filters</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="font-display uppercase text-lg text-tt-fg">Signal Filters</h1>
+          {liveAlerts.filter((a) => a.type === "signal_filter_match").length > 0 && (
+            <span className="bg-tt-red text-tt-bg text-[10px] leading-none rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1.5">
+              {liveAlerts.filter((a) => a.type === "signal_filter_match").length}
+            </span>
+          )}
+        </div>
         {!formOpen && (
           <button
             onClick={() => {

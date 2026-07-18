@@ -191,8 +191,9 @@ function CallTimeline({
     const list: Array<{ who: string; price: number | null; timestamp: string; kind: "kol" | "cluster" }> = [];
     
     events.kolCalls.forEach((c) => {
+      const who = c.sourceId ? (c.sourceId.startsWith("@") ? c.sourceId : `@${c.sourceId}`) : "KOL Call";
       list.push({
-        who: c.sourceId.startsWith("@") ? c.sourceId : `@${c.sourceId}`,
+        who,
         price: c.priceAtCall,
         timestamp: c.timestamp,
         kind: "kol"

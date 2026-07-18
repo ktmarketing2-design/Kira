@@ -662,3 +662,87 @@ export async function getKline(
     return [];
   }
 }
+
+// ============================================================================
+// Token Full Terminal (Sprint 8 Part 6): token info/pool/holders/traders/dev-history.
+// Raw pass-through, same reasoning as getTrenches -- field names come from Antigravity's
+// live-verified report (kira-sprint8-part6-code.md), not re-tested independently. Routed through
+// runCli (the shared 1 req/sec limiter) rather than a separate unprotected CLI wrapper, same
+// reasoning as every other Sprint 7/8 GMGN addition: concurrent gmgn-cli calls were verified live
+// to trigger GMGN's rate limit/temporary ban.
+// ============================================================================
+
+export async function getTokenInfo(tokenAddress: string): Promise<Record<string, unknown> | null> {
+  try {
+    const json = await runCli(["token", "info", "--chain", "sol", "--address", tokenAddress]);
+    return json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return null;
+  }
+}
+
+export async function getTokenPool(tokenAddress: string): Promise<Record<string, unknown> | null> {
+  try {
+    const json = await runCli(["token", "pool", "--chain", "sol", "--address", tokenAddress]);
+    return json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return null;
+  }
+}
+
+export type HolderTag =
+  | "smart_degen"
+  | "renowned"
+  | "fresh_wallet"
+  | "dev"
+  | "sniper"
+  | "rat_trader"
+  | "bundler"
+  | "transfer_in"
+  | "dex_bot"
+  | "bluechip_owner";
+
+export async function getTokenHolders(
+  tokenAddress: string,
+  opts?: { tag?: HolderTag; limit?: number },
+): Promise<unknown[]> {
+  try {
+    const args = ["token", "holders", "--chain", "sol", "--address", tokenAddress, "--limit", String(opts?.limit ?? 100)];
+    if (opts?.tag) args.push("--tag", opts.tag);
+    const json = await runCli(args);
+    if (json && typeof json === "object" && Array.isArray((json as Record<string, unknown>).list)) {
+      return (json as Record<string, unknown>).list as unknown[];
+    }
+    return [];
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}
+
+export async function getTokenTraders(tokenAddress: string, limit = 100): Promise<unknown[]> {
+  try {
+    const json = await runCli(["token", "traders", "--chain", "sol", "--address", tokenAddress, "--limit", String(limit)]);
+    if (json && typeof json === "object" && Array.isArray((json as Record<string, unknown>).list)) {
+      return (json as Record<string, unknown>).list as unknown[];
+    }
+    return [];
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return [];
+  }
+}
+
+/** Dev's previous launches, via `gmgn-cli portfolio created-tokens`. Returns null on failure
+ * rather than a zeroed-out object with false-looking "0 tokens created" data. */
+export async function getCreatorHistory(walletAddress: string): Promise<Record<string, unknown> | null> {
+  try {
+    const json = await runCli(["portfolio", "created-tokens", "--chain", "sol", "--wallet", walletAddress]);
+    return json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  } catch (err) {
+    logClientFailure(SOURCE, err);
+    return null;
+  }
+}

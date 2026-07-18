@@ -7,7 +7,7 @@ import { AppDataProvider } from "./AppDataContext.js";
 export default function Shell({ children }: { children: ReactNode }) {
   return (
     <AppDataProvider>
-      <div className="flex min-h-screen bg-kira-bg">
+      <div className="flex min-h-screen bg-tt-bg">
         <Sidebar />
         <div className="flex-1 min-w-0">
           <TopBar />

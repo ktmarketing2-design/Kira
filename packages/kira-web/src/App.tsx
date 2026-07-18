@@ -50,6 +50,7 @@ export default function App() {
       <Route path="/kol" element={<Protected><KolPage /></Protected>} />
       <Route path="/discover" element={<Protected><DiscoverPage /></Protected>} />
       <Route path="/signals" element={<Protected><SignalsPage /></Protected>} />
+      <Route path="/signals/:address" element={<Protected><SignalsPage /></Protected>} />
       {/* /chart/:address used to be a separate page — now the token page IS the chart studio */}
       <Route path="/chart/:address" element={<Protected><ChartRedirect /></Protected>} />
       <Route path="/watchlist" element={<Protected><WatchlistPage /></Protected>} />

@@ -297,4 +297,109 @@ router.put("/:address/drawings", async (req, res) => {
   res.json({ id: data.id, drawings: data.drawings, updatedAt: data.updated_at });
 });
 
+// ============================================================================
+// Research Notes (Sprint 8 Part 5): lightweight per-user, per-token notes panel.
+// ============================================================================
+
+router.get("/:address/notes", async (req, res) => {
+  const { data, error } = await supabase
+    .from("kira_research_notes")
+    .select("id, content, pinned, created_at, updated_at")
+    .eq("user_id", req.user!.id)
+    .eq("token_address", req.params.address)
+    .order("pinned", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[kira-api:token] notes list failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.json({ notes: data ?? [] });
+});
+
+const createNoteSchema = z.object({
+  content: z.string().min(1).max(4000),
+});
+
+router.post("/:address/notes", async (req, res) => {
+  const parsed = createNoteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("kira_research_notes")
+    .insert({ user_id: req.user!.id, token_address: req.params.address, content: parsed.data.content })
+    .select("id, content, pinned, created_at, updated_at")
+    .single();
+
+  if (error) {
+    console.error("[kira-api:token] note insert failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.status(201).json({ note: data });
+});
+
+const updateNoteSchema = z.object({
+  content: z.string().min(1).max(4000).optional(),
+  pinned: z.boolean().optional(),
+});
+
+router.patch("/:address/notes/:id", async (req, res) => {
+  const parsed = updateNoteSchema.safeParse(req.body);
+  if (!parsed.success || (parsed.data.content === undefined && parsed.data.pinned === undefined)) {
+    res.status(400).json({ error: "Invalid payload", details: parsed.success ? undefined : parsed.error.flatten() });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("kira_research_notes")
+    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .eq("id", req.params.id)
+    .eq("user_id", req.user!.id)
+    .eq("token_address", req.params.address)
+    .select("id, content, pinned, created_at, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    console.error("[kira-api:token] note update failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  if (!data) {
+    res.status(404).json({ error: "Note not found" });
+    return;
+  }
+
+  res.json({ note: data });
+});
+
+router.delete("/:address/notes/:id", async (req, res) => {
+  const { error, count } = await supabase
+    .from("kira_research_notes")
+    .delete({ count: "exact" })
+    .eq("id", req.params.id)
+    .eq("user_id", req.user!.id)
+    .eq("token_address", req.params.address);
+
+  if (error) {
+    console.error("[kira-api:token] note delete failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  if (!count) {
+    res.status(404).json({ error: "Note not found" });
+    return;
+  }
+
+  res.status(204).send();
+});
+
 export default router;

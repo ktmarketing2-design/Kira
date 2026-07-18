@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../lib/api.js";
 import type { Alert, DdCard } from "../lib/types.js";
+import KolCallDetailsModal from "../token/KolCallDetailsModal.js";
 
 interface KolCall {
   id: string;
@@ -107,10 +108,12 @@ function CallTimeline({
   tokenAddress,
   pairAddress,
   currentPriceUsd,
+  onSelectKolCall,
 }: {
   tokenAddress: string;
   pairAddress: string | null;
   currentPriceUsd: number | null;
+  onSelectKolCall?: (kol: { sourceId: string; sourceName: string; calledAt: string; priceAtCall: number | null }) => void;
 }) {
   const [candles, setCandles] = useState<RawCandle[]>([]);
   const [events, setEvents] = useState<{ alerts: ChartEvent[]; kolCalls: TimelineKolCall[] }>({ alerts: [], kolCalls: [] });
@@ -188,7 +191,7 @@ function CallTimeline({
   ];
 
   const timelineItems = (() => {
-    const list: Array<{ who: string; price: number | null; timestamp: string; kind: "kol" | "cluster" }> = [];
+    const list: Array<{ who: string; price: number | null; timestamp: string; kind: "kol" | "cluster"; sourceId?: string }> = [];
     
     events.kolCalls.forEach((c) => {
       const who = c.sourceId ? (c.sourceId.startsWith("@") ? c.sourceId : `@${c.sourceId}`) : "KOL Call";
@@ -196,7 +199,8 @@ function CallTimeline({
         who,
         price: c.priceAtCall,
         timestamp: c.timestamp,
-        kind: "kol"
+        kind: "kol",
+        sourceId: c.sourceId,
       });
     });
 
@@ -242,8 +246,22 @@ function CallTimeline({
           const delta = item.price && currentPriceUsd
             ? ((currentPriceUsd - item.price) / item.price) * 100
             : null;
+          const isKol = item.kind === "kol";
           return (
-            <div key={idx} className="call-item flex flex-col gap-0.5 text-xs py-1.5 border-b border-tt-border last:border-b-0">
+            <div
+              key={idx}
+              onClick={() => {
+                if (isKol && onSelectKolCall && item.sourceId) {
+                  onSelectKolCall({
+                    sourceId: item.sourceId,
+                    sourceName: item.who,
+                    calledAt: item.timestamp,
+                    priceAtCall: item.price,
+                  });
+                }
+              }}
+              className={`call-item flex flex-col gap-0.5 text-xs py-1.5 border-b border-tt-border last:border-b-0 ${isKol ? "hover:text-tt-brand cursor-pointer" : ""}`}
+            >
               <div className="flex justify-between items-center">
                 <span className="who font-medium text-tt-fg">{item.who}</span>
                 {delta != null && (
@@ -253,7 +271,7 @@ function CallTimeline({
                 )}
               </div>
               <span className="at text-[10px] text-tt-fg-dim font-mono">
-                {item.kind === "kol" ? "called" : "bought"} at {item.price != null ? `$${item.price.toFixed(6)}` : "—"}
+                {isKol ? "called" : "bought"} at {item.price != null ? `$${item.price.toFixed(6)}` : "—"}
               </span>
             </div>
           );
@@ -266,6 +284,12 @@ function CallTimeline({
 function DdSidebar({ tokenAddress }: { tokenAddress: string }) {
   const [card, setCard] = useState<DdCard | null>(null);
   const [error, setError] = useState(false);
+  const [selectedKolCall, setSelectedKolCall] = useState<{
+    sourceId: string;
+    sourceName: string;
+    calledAt: string;
+    priceAtCall: number | null;
+  } | null>(null);
 
   useEffect(() => {
     setCard(null);
@@ -315,6 +339,7 @@ function DdSidebar({ tokenAddress }: { tokenAddress: string }) {
           tokenAddress={tokenAddress}
           pairAddress={card.market.pairAddress}
           currentPriceUsd={card.market.priceUsd}
+          onSelectKolCall={setSelectedKolCall}
         />
       </div>
 
@@ -429,6 +454,19 @@ function DdSidebar({ tokenAddress }: { tokenAddress: string }) {
           </a>
         </div>
       </div>
+
+      {selectedKolCall && (
+        <KolCallDetailsModal
+          sourceId={selectedKolCall.sourceId}
+          sourceName={selectedKolCall.sourceName}
+          calledAt={selectedKolCall.calledAt}
+          priceAtCall={selectedKolCall.priceAtCall}
+          currentPriceUsd={card.market.priceUsd}
+          tokenSymbol={card.symbol ?? "TOKEN"}
+          tokenAddress={card.tokenAddress}
+          onClose={() => setSelectedKolCall(null)}
+        />
+      )}
     </div>
   );
 }

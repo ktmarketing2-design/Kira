@@ -11,6 +11,7 @@ import WatchlistButton from "../shell/WatchlistButton.js";
 import ResearchNotesPanel from "./ResearchNotesPanel.js";
 import TokenHeader, { type TokenFullMeta } from "./TokenHeader.js";
 import { getBuyBots } from "./buyBots.js";
+import KolCallDetailsModal from "./KolCallDetailsModal.js";
 import {
   HoldersTab,
   TradersTab,
@@ -235,12 +236,14 @@ function TokenSidebar({
   card,
   address,
   events,
+  kolCalls = [],
   fullData,
   onRefresh,
 }: {
   card: DdCard;
   address: string;
   events: ChartEvent[];
+  kolCalls?: any[];
   fullData: TokenFullResponse | null;
   onRefresh: () => void;
 }) {
@@ -248,6 +251,12 @@ function TokenSidebar({
   const [holdersOpen, setHoldersOpen] = useState(false);
   const [kolOpen, setKolOpen] = useState(false);
   const [socialOpen, setSocialOpen] = useState(false);
+  const [selectedKolCall, setSelectedKolCall] = useState<{
+    sourceId: string;
+    sourceName: string;
+    calledAt: string;
+    priceAtCall: number | null;
+  } | null>(null);
   const bots = getBuyBots(card.graduated === true);
 
   return (
@@ -374,25 +383,48 @@ function TokenSidebar({
       </div>
 
       {/* KOL Call History */}
+      {/* KOL Call History */}
       <div>
         <div
           onClick={() => setKolOpen((o) => !o)}
           className="flex justify-between px-4 py-3 text-xs text-tt-fg-dim cursor-pointer hover:text-tt-fg"
         >
-          <span>KOL Call History</span>
+          <span>KOL Call History ({kolCalls.length})</span>
           <span>{kolOpen ? "▾" : "›"}</span>
         </div>
         {kolOpen && (
-          <div className="border-t border-tt-border px-4 py-3">
-            <p className="text-xs text-tt-fg-faint mb-2">
-              KOL mentions: {card.socialSignals.kolMentions} of {card.socialSignals.totalTrackedChannels} tracked channels
-            </p>
-            <a
-              href="/kol"
-              className="text-xs text-tt-brand hover:underline"
-            >
-              View full KOL call history →
-            </a>
+          <div className="border-t border-tt-border px-4 py-3 space-y-2">
+            {kolCalls.length === 0 ? (
+              <p className="text-xs text-tt-fg-faint font-mono">No KOL calls detected for this token.</p>
+            ) : (
+              <div className="space-y-1.5 divide-y divide-tt-border/50">
+                {kolCalls.map((c) => {
+                  const who = c.sourceId ? (c.sourceId.startsWith("@") ? c.sourceId : `@${c.sourceId}`) : "KOL Call";
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedKolCall({
+                        sourceId: c.sourceId,
+                        sourceName: who,
+                        calledAt: c.timestamp,
+                        priceAtCall: c.priceAtCall,
+                      })}
+                      className="w-full text-left py-1.5 flex justify-between items-center text-xs hover:text-tt-brand cursor-pointer"
+                    >
+                      <span className="font-medium text-tt-fg">{who}</span>
+                      <span className="text-[10px] text-tt-fg-faint font-mono">
+                        {c.priceAtCall != null ? `$${c.priceAtCall.toFixed(6)}` : "view →"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="pt-2 border-t border-tt-border">
+              <a href="/kol" className="text-xs text-tt-brand hover:underline">
+                View full KOL tracker →
+              </a>
+            </div>
           </div>
         )}
       </div>
@@ -458,6 +490,19 @@ function TokenSidebar({
           onClose={() => setBuyModalOpen(false)}
         />
       )}
+
+      {selectedKolCall && (
+        <KolCallDetailsModal
+          sourceId={selectedKolCall.sourceId}
+          sourceName={selectedKolCall.sourceName}
+          calledAt={selectedKolCall.calledAt}
+          priceAtCall={selectedKolCall.priceAtCall}
+          currentPriceUsd={card.market.priceUsd}
+          tokenSymbol={card.symbol ?? "TOKEN"}
+          tokenAddress={card.tokenAddress}
+          onClose={() => setSelectedKolCall(null)}
+        />
+      )}
     </div>
   );
 }
@@ -468,6 +513,7 @@ export default function TokenPage() {
   const [card, setCard] = useState<DdCard | null>(null);
   const [fullData, setFullData] = useState<TokenFullResponse | null>(null);
   const [events, setEvents] = useState<ChartEvent[]>([]);
+  const [kolCalls, setKolCalls] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -505,6 +551,7 @@ export default function TokenPage() {
   useEffect(() => {
     setFullData(null); // same reasoning as the DD card: never show a previous token's data mid-switch
     setEvents([]);
+    setKolCalls([]);
     if (!address) return;
     let cancelled = false;
     apiRequest<TokenFullResponse>("GET", `/token/${address}/full`)
@@ -515,12 +562,18 @@ export default function TokenPage() {
         if (!cancelled) setFullData(null);
       });
 
-    apiRequest<{ alerts: ChartEvent[] }>("GET", `/token/${address}/events`)
+    apiRequest<{ alerts: ChartEvent[]; kolCalls: any[] }>("GET", `/token/${address}/events`)
       .then((res) => {
-        if (!cancelled) setEvents(res.alerts.filter((a) => a.kind.startsWith("cluster")));
+        if (!cancelled) {
+          setEvents(res.alerts.filter((a) => a.kind.startsWith("cluster")));
+          setKolCalls(res.kolCalls || []);
+        }
       })
       .catch(() => {
-        if (!cancelled) setEvents([]);
+        if (!cancelled) {
+          setEvents([]);
+          setKolCalls([]);
+        }
       });
 
     return () => {
@@ -585,7 +638,7 @@ export default function TokenPage() {
             />
           </div>
           <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
-            <TokenSidebar card={card} address={address} events={events} fullData={fullData} onRefresh={() => load(address)} />
+            <TokenSidebar card={card} address={address} events={events} kolCalls={kolCalls} fullData={fullData} onRefresh={() => load(address)} />
           </div>
         </div>
       ) : (
@@ -601,7 +654,7 @@ export default function TokenPage() {
             onOpenProfile={setProfileAddress}
           />
           <div className="mt-6">
-            <TokenSidebar card={card} address={address} events={events} fullData={fullData} onRefresh={() => load(address)} />
+            <TokenSidebar card={card} address={address} events={events} kolCalls={kolCalls} fullData={fullData} onRefresh={() => load(address)} />
           </div>
         </div>
       ))}

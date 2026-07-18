@@ -111,12 +111,20 @@ export default function TransactionsPanel({
   }
 
   if (trades === null) {
-    return <div className="text-tt-fg-dim text-sm py-8 text-center">Loading transactions...</div>;
+    return <div className="text-tt-fg-dim text-sm py-8 text-center font-mono animate-pulse">Loading transactions...</div>;
   }
 
-  if (unavailable || trades.length === 0) {
+  if (unavailable) {
     return (
-      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm">
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm font-mono">
+        ⚠️ Helius RPC Limit exceeded (429: max usage reached). Please upgrade your Helius API Key in your .env file on the VPS.
+      </div>
+    );
+  }
+
+  if (trades.length === 0) {
+    return (
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm font-mono">
         No recent transaction data available for this token.
       </div>
     );

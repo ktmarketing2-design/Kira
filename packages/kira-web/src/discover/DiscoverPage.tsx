@@ -32,6 +32,11 @@ interface PositionedToken extends DiscoverToken {
   r: number;
 }
 
+interface FloatingBubble extends PositionedToken {
+  vx: number;
+  vy: number;
+}
+
 const TYPE_TABS: { value: DiscoverType; label: string }[] = [
   { value: "new_creation", label: "New" },
   { value: "near_completion", label: "Near Graduation" },
@@ -291,24 +296,94 @@ export default function DiscoverPage() {
   }, [tokens, minSmartMoney, minRugScore, liquidityRange, launchpad]);
 
   const ranked = useMemo(() => [...filtered].sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0)), [filtered]);
-  const positioned = useMemo(() => layoutBubbles(filtered, 800, 560), [filtered]);
+
+  const [bubbles, setBubbles] = useState<FloatingBubble[]>([]);
+
+  // Sync incoming tokens with current bubbles state to preserve position/momentum
+  useEffect(() => {
+    if (loading) return;
+    const maxLiquidity = Math.max(1, ...filtered.map((t) => t.liquidity ?? 0));
+    setBubbles((prev) => {
+      const existing = new Map(prev.map((b) => [b.address, b]));
+      return filtered.map((t) => {
+        const ext = existing.get(t.address);
+        const liquidityFrac = (t.liquidity ?? 0) / maxLiquidity;
+        const r = 14 + Math.sqrt(liquidityFrac) * 34;
+        if (ext) {
+          return { ...ext, r, ...t }; // Keep current position/momentum
+        }
+        // Slow velocity range [-0.25, 0.25] pixels/frame
+        return {
+          ...t,
+          x: 50 + Math.random() * 700,
+          y: 50 + Math.random() * 460,
+          r,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+        };
+      });
+    });
+  }, [filtered, loading]);
+
+  // Animation frame update loop
+  useEffect(() => {
+    let animId: number;
+    function update() {
+      setBubbles((prev) =>
+        prev.map((b) => {
+          let nextX = b.x + b.vx;
+          let nextY = b.y + b.vy;
+          let nextVx = b.vx;
+          let nextVy = b.vy;
+
+          // Bounce off boundaries with container margins
+          if (nextX - b.r < 10) {
+            nextX = b.r + 10;
+            nextVx = -nextVx;
+          } else if (nextX + b.r > 790) {
+            nextX = 790 - b.r;
+            nextVx = -nextVx;
+          }
+
+          if (nextY - b.r < 10) {
+            nextY = b.r + 10;
+            nextVy = -nextVy;
+          } else if (nextY + b.r > 550) {
+            nextY = 550 - b.r;
+            nextVy = -nextVy;
+          }
+
+          return {
+            ...b,
+            x: nextX,
+            y: nextY,
+            vx: nextVx,
+            vy: nextVy,
+          };
+        })
+      );
+      animId = requestAnimationFrame(update);
+    }
+    animId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animId);
+  }, []);
 
   const links = useMemo(() => {
-    const list: Array<{ source: PositionedToken; target: PositionedToken; strength: number }> = [];
-    if (positioned.length < 2) return list;
-    for (let i = 0; i < positioned.length; i++) {
-      const source = positioned[i];
-      const nextIdx = (i + 1) % positioned.length;
-      const target1 = positioned[nextIdx];
+    const list: Array<{ source: FloatingBubble; target: FloatingBubble; strength: number }> = [];
+    if (bubbles.length < 2) return list;
+    for (let i = 0; i < bubbles.length; i++) {
+      const source = bubbles[i];
+      const nextIdx = (i + 1) % bubbles.length;
+      const target1 = bubbles[nextIdx];
       list.push({
         source,
         target: target1,
         strength: ((i * 3 + 7) % 5) + 1,
       });
 
-      if (positioned.length > 3) {
-        const farIdx = (i + 3) % positioned.length;
-        const target2 = positioned[farIdx];
+      if (bubbles.length > 3) {
+        const farIdx = (i + 3) % bubbles.length;
+        const target2 = bubbles[farIdx];
         list.push({
           source,
           target: target2,
@@ -317,7 +392,7 @@ export default function DiscoverPage() {
       }
     }
     return list;
-  }, [positioned]);
+  }, [bubbles]);
 
   return (
     <div className="grid" style={{ gridTemplateColumns: selected ? "1fr 320px" : "1fr", height: "calc(100vh - 130px)" }}>
@@ -442,7 +517,7 @@ export default function DiscoverPage() {
                   );
                 })}
 
-                {positioned.map((t) => (
+                {bubbles.map((t) => (
                   <g
                     key={t.address}
                     className="cursor-pointer"

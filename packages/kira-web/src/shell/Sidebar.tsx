@@ -29,7 +29,7 @@ function linkClass(active: boolean): string {
 export default function Sidebar() {
   return (
     <aside className="hidden md:flex md:flex-col w-[210px] shrink-0 bg-tt-bg border-r border-tt-border h-screen sticky top-0 px-4 py-5">
-      <img src="/kira-logo.jpeg" alt="Kira by Ceronix Labs" className="h-5 rounded-[3px] mb-7" />
+      <img src="/kira-logo.jpeg" alt="Kira by Ceronix Labs" className="h-5 w-[60px] object-cover object-center rounded-[3px] mb-7" />
 
       <nav className="flex flex-col">
         {navItems.map((item) => (

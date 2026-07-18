@@ -209,32 +209,58 @@ function normalizeHandle(raw: string): string {
 }
 
 router.get("/user-sources", async (req, res) => {
-  const { data, error } = await supabase
-    .from("kira_user_kol_sources")
-    .select("id, platform, channel_identifier, display_name, active, added_at")
-    .eq("user_id", req.user!.id)
-    .order("added_at", { ascending: false });
+  const [{ data: sources, error: sourcesError }, { data: calls, error: callsError }] = await Promise.all([
+    supabase
+      .from("kira_user_kol_sources")
+      .select("id, platform, channel_identifier, display_name, active, added_at")
+      .eq("user_id", req.user!.id)
+      .order("added_at", { ascending: false }),
+    // source_user_id (not source_id): personal-channel calls are attributed to the user, not a
+    // kira_kol_sources row. message_id is prefixed "user:<personalSourceId>:<telegramMessageId>"
+    // by kolIngestWorker specifically so a single query here can be split back out per-channel
+    // in JS below, without an extra query per source.
+    supabase
+      .from("kira_kol_calls")
+      .select("message_id, called_at")
+      .eq("source_user_id", req.user!.id)
+      .order("called_at", { ascending: false })
+      .limit(MAX_CALLS_FOR_AGGREGATION),
+  ]);
 
-  if (error) {
-    console.error("[kira-api:kol] user-sources list failed:", error.message);
+  if (sourcesError || callsError) {
+    console.error("[kira-api:kol] user-sources list failed:", sourcesError?.message, callsError?.message);
     res.status(500).json({ error: "Internal server error" });
     return;
   }
 
-  // totalCalls/lastCallAt are placeholders (always 0/null): kolIngestWorker only ever watches
-  // the curated kira_kol_sources list today, personal sources aren't ingested yet, so there is
-  // nothing in kira_kol_calls to attribute back to a personal source_id.
+  const statsBySourceId = new Map<string, { totalCalls: number; lastCallAt: string }>();
+  for (const call of (calls as { message_id: string; called_at: string }[] | null) ?? []) {
+    const match = /^user:([^:]+):/.exec(call.message_id);
+    if (!match) continue;
+    const sourceId = match[1];
+    const existing = statsBySourceId.get(sourceId);
+    if (existing) {
+      existing.totalCalls++;
+    } else {
+      // calls arrive ordered called_at desc, so the first one seen per source is the latest.
+      statsBySourceId.set(sourceId, { totalCalls: 1, lastCallAt: call.called_at });
+    }
+  }
+
   res.json({
-    sources: (data ?? []).map((s) => ({
-      id: s.id,
-      platform: s.platform,
-      channelIdentifier: s.channel_identifier,
-      displayName: s.display_name,
-      active: s.active,
-      addedAt: s.added_at,
-      totalCalls: 0,
-      lastCallAt: null,
-    })),
+    sources: (sources ?? []).map((s) => {
+      const stats = statsBySourceId.get(s.id);
+      return {
+        id: s.id,
+        platform: s.platform,
+        channelIdentifier: s.channel_identifier,
+        displayName: s.display_name,
+        active: s.active,
+        addedAt: s.added_at,
+        totalCalls: stats?.totalCalls ?? 0,
+        lastCallAt: stats?.lastCallAt ?? null,
+      };
+    }),
   });
 });
 

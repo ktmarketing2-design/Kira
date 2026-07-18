@@ -46,25 +46,28 @@ export default function SmartMoneyFeed() {
   }, []);
 
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-4">
-      <h2 className="text-xs uppercase tracking-wide text-kira-text-muted mb-3">Smart Money Feed</h2>
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md p-5">
+      <div className="flex justify-between text-[10px] uppercase tracking-wide text-tt-fg-faint mb-3.5">
+        <span>Smart Money Feed</span>
+        <span className="text-tt-green">● LIVE</span>
+      </div>
       {loading ? (
-        <div className="text-kira-text-dim text-xs">Loading...</div>
+        <div className="text-tt-fg-dim text-xs">Loading...</div>
       ) : events.length === 0 ? (
-        <div className="text-kira-text-dim text-xs">No smart money activity in the last 24h.</div>
+        <div className="text-tt-fg-dim text-xs">No smart money activity in the last 24h.</div>
       ) : (
-        <div className="space-y-2">
+        <div>
           {events.map((e) => (
             <button
               key={e.id}
               onClick={() => navigate(`/token/${e.token_address}`)}
-              className="w-full flex items-center justify-between text-xs text-left hover:bg-kira-surface-2 rounded px-1 py-1"
+              className="w-full grid grid-cols-[1fr_auto_auto] gap-2.5 items-center text-xs text-left py-2 border-t border-tt-border first:border-t-0"
             >
-              <span className="text-kira-text-muted">{walletLabel(e)}</span>
-              <span className={e.side === "buy" ? "text-kira-green" : "text-kira-red"}>
+              <span className="text-tt-fg-dim">{walletLabel(e)}</span>
+              <span className={e.side === "buy" ? "text-tt-green" : "text-tt-red"}>
                 {e.side === "buy" ? "bought" : "sold"} {truncate(e.token_address)}
               </span>
-              <span className="text-kira-text-dim">{timeAgo(e.block_time)}</span>
+              <span className="text-tt-fg-faint text-[10px]">{timeAgo(e.block_time)}</span>
             </button>
           ))}
         </div>

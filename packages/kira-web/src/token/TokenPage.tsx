@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
 import DdCardView from "../shell/DdCardView.js";
 import GeckoTerminalChart from "./GeckoTerminalChart.js";
@@ -97,6 +97,12 @@ function TokenChart({ address, card, chartMode, setChartMode }: {
         >
           🎯 Kira Signals
         </button>
+        <Link
+          to={`/chart/${address}`}
+          className="text-xs px-2 py-1 rounded-md border border-tt-border text-tt-fg-dim hover:text-tt-fg ml-auto"
+        >
+          Open in Chart Studio ↗
+        </Link>
       </div>
       {chartMode === "gecko" ? (
         <GeckoTerminalChart tokenAddress={address} pairAddress={card.market.pairAddress} />

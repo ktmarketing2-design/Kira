@@ -306,17 +306,22 @@ router.put("/:address/drawings", async (req, res) => {
 });
 
 // ============================================================================
-// Research Notes (Sprint 8 Part 5): lightweight per-user, per-token notes panel.
+// Research Notes / Research Threads (Sprint 8 Part 5, extended Sprint 9 Part 16):
+// per-user, per-token panel. Started as flat notes; is_ai_message + parent_id (migration 013)
+// let the same table also hold a chat thread with Kira ("Ask Kira" persists the question as a
+// plain row and the /ask answer as an is_ai_message row with parent_id pointing at the question).
+// Ordered chronologically ascending here (not pinned-first like before) since a chat thread reads
+// top-to-bottom in the order it happened; pinning is still supported per-message for anything the
+// user wants to flag, it just doesn't reorder the thread anymore.
 // ============================================================================
 
 router.get("/:address/notes", async (req, res) => {
   const { data, error } = await supabase
     .from("kira_research_notes")
-    .select("id, content, pinned, created_at, updated_at")
+    .select("id, content, pinned, is_ai_message, parent_id, created_at, updated_at")
     .eq("user_id", req.user!.id)
     .eq("token_address", req.params.address)
-    .order("pinned", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
   if (error) {
     console.error("[kira-api:token] notes list failed:", error.message);
@@ -329,6 +334,8 @@ router.get("/:address/notes", async (req, res) => {
 
 const createNoteSchema = z.object({
   content: z.string().min(1).max(4000),
+  isAiMessage: z.boolean().optional(),
+  parentId: z.string().uuid().optional(),
 });
 
 router.post("/:address/notes", async (req, res) => {
@@ -340,8 +347,14 @@ router.post("/:address/notes", async (req, res) => {
 
   const { data, error } = await supabase
     .from("kira_research_notes")
-    .insert({ user_id: req.user!.id, token_address: req.params.address, content: parsed.data.content })
-    .select("id, content, pinned, created_at, updated_at")
+    .insert({
+      user_id: req.user!.id,
+      token_address: req.params.address,
+      content: parsed.data.content,
+      is_ai_message: parsed.data.isAiMessage ?? false,
+      parent_id: parsed.data.parentId ?? null,
+    })
+    .select("id, content, pinned, is_ai_message, parent_id, created_at, updated_at")
     .single();
 
   if (error) {
@@ -371,7 +384,7 @@ router.patch("/:address/notes/:id", async (req, res) => {
     .eq("id", req.params.id)
     .eq("user_id", req.user!.id)
     .eq("token_address", req.params.address)
-    .select("id, content, pinned, created_at, updated_at")
+    .select("id, content, pinned, is_ai_message, parent_id, created_at, updated_at")
     .maybeSingle();
 
   if (error) {

@@ -197,114 +197,119 @@ export default function SignalsPage() {
     };
 
     // 1. Spec mockups (highly interactive defaults snapped to actual close price line)
-    const r1 = getMockReturn(9);
+    const idx1 = Math.floor(N * 0.45);
+    const r1 = getMockReturn(idx1);
     list.push({
       id: "cluster1",
       kind: "cluster",
       label: "3 wallets",
       caller: "3 Tracked Wallets",
       callerType: "Cluster Buy · 3 wallets",
-      price: getMockPrice(9),
+      price: getMockPrice(idx1),
       ret: r1.text,
       wr: "—",
       avg: "—",
       time: new Date(Date.now() - 12 * 1000).toISOString(),
       timeAgo: "12s ago",
       total: "—",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(9) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(9) / (currentPriceUsd || 1))),
+      mcap: fmtUsd(fdvUsd * (getMockPrice(idx1) / (currentPriceUsd || 1))),
+      liq: fmtUsd(liquidityUsd * (getMockPrice(idx1) / (currentPriceUsd || 1))),
       good: r1.good,
       title: "3 top wallets bought",
       subtitle: "Cluster buy · combined 4.2 SOL",
-      idx: Math.min(9, N - 1)
+      idx: idx1
     });
 
-    const r2 = getMockReturn(4);
+    const idx2 = Math.floor(N * 0.20);
+    const r2 = getMockReturn(idx2);
     list.push({
       id: "kol1",
       kind: "kol",
       label: "@spydefi",
       caller: "@spydefi",
       callerType: "KOL Call · Telegram",
-      price: getMockPrice(4),
+      price: getMockPrice(idx2),
       ret: r2.text,
       wr: "68%",
       avg: "+24.5%",
       time: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
       timeAgo: "4m ago",
       total: "214",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(4) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(4) / (currentPriceUsd || 1))),
+      mcap: fmtUsd(fdvUsd * (getMockPrice(idx2) / (currentPriceUsd || 1))),
+      liq: fmtUsd(liquidityUsd * (getMockPrice(idx2) / (currentPriceUsd || 1))),
       good: r2.good,
       title: "@spydefi called it",
       subtitle: "KOL call · Telegram",
-      idx: Math.min(4, N - 1)
+      idx: idx2
     });
 
-    const r3 = getMockReturn(14);
+    const idx3 = Math.floor(N * 0.70);
+    const r3 = getMockReturn(idx3);
     list.push({
       id: "kol2",
       kind: "kol",
       label: "@cryptogem",
       caller: "@cryptogem",
       callerType: "KOL Call · Telegram",
-      price: getMockPrice(14),
+      price: getMockPrice(idx3),
       ret: r3.text,
       wr: "44%",
       avg: "-6.2%",
       time: new Date(Date.now() - 19 * 60 * 1000).toISOString(),
       timeAgo: "19m ago",
       total: "87",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(14) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(14) / (currentPriceUsd || 1))),
+      mcap: fmtUsd(fdvUsd * (getMockPrice(idx3) / (currentPriceUsd || 1))),
+      liq: fmtUsd(liquidityUsd * (getMockPrice(idx3) / (currentPriceUsd || 1))),
       good: r3.good,
       title: "@cryptogem called it",
       subtitle: "KOL call · Telegram",
-      idx: Math.min(14, N - 1)
+      idx: idx3
     });
 
-    const r4 = getMockReturn(16);
+    const idx4 = Math.floor(N * 0.80);
+    const r4 = getMockReturn(idx4);
     list.push({
       id: "rug1",
       kind: "rug",
       label: "Rug flag",
       caller: "Community Report",
       callerType: "Rug Flag",
-      price: getMockPrice(16),
+      price: getMockPrice(idx4),
       ret: r4.text,
       wr: "—",
       avg: "—",
       time: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
       timeAgo: "8m ago",
       total: "—",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(16) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(16) / (currentPriceUsd || 1))),
+      mcap: fmtUsd(fdvUsd * (getMockPrice(idx4) / (currentPriceUsd || 1))),
+      liq: fmtUsd(liquidityUsd * (getMockPrice(idx4) / (currentPriceUsd || 1))),
       good: r4.good,
       title: "Flagged as possible rug pull",
       subtitle: "Community report",
-      idx: Math.min(16, N - 1)
+      idx: idx4
     });
 
-    const r5 = getMockReturn(17);
+    const idx5 = Math.floor(N * 0.85);
+    const r5 = getMockReturn(idx5);
     list.push({
       id: "lp1",
       kind: "lp",
       label: "LP unlock",
       caller: "On-chain Event",
       callerType: "LP Unlocked",
-      price: getMockPrice(17),
+      price: getMockPrice(idx5),
       ret: r5.text,
       wr: "—",
       avg: "—",
       time: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
       timeAgo: "11m ago",
       total: "—",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(17) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(17) / (currentPriceUsd || 1))),
+      mcap: fmtUsd(fdvUsd * (getMockPrice(idx5) / (currentPriceUsd || 1))),
+      liq: fmtUsd(liquidityUsd * (getMockPrice(idx5) / (currentPriceUsd || 1))),
       good: r5.good,
       title: "LP unlocked",
       subtitle: "Liquidity pool authority change",
-      idx: Math.min(17, N - 1)
+      idx: idx5
     });
 
     // 2. Add real alerts / calls from the DB / webhooks

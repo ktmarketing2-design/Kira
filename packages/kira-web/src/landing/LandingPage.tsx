@@ -60,7 +60,7 @@ const TIERS = [
 function Logo({ className = "" }: { className?: string }) {
   return (
     <Link to="/" className={`flex items-center gap-2.5 ${className}`}>
-      <img src="/kira-logo.jpeg" alt="Kira by Ceronix Labs" className="h-6 w-[72px] object-cover object-center rounded-[3px]" />
+      <img src="/kira-logo.jpeg" alt="Kira by Ceronix Labs" className="h-7 w-[84px] object-cover object-center rounded-[3px]" />
     </Link>
   );
 }

@@ -31,8 +31,8 @@ export default function LinkPage() {
 
   return (
     <div className="min-h-screen bg-kira-bg flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-kira-surface border border-kira-border rounded-md p-6 text-center">
-        <div className="font-display text-xl tracking-widest text-kira-text mb-4">KIRA</div>
+      <div className="w-full max-w-sm bg-kira-surface border border-kira-border rounded-md p-6 flex flex-col items-center text-center">
+        <img src="/kira-logo.jpeg" alt="Kira by Ceronix Labs" className="w-[150px] h-[44px] object-cover object-center rounded-[3px] mb-4" />
 
         {status === "waiting" && !loading && (
           <>

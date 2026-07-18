@@ -24,9 +24,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-kira-bg flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="font-display text-2xl tracking-widest text-kira-text">KIRA</div>
-          <div className="text-kira-text-muted text-xs mt-1">by Ceronix Labs</div>
+        <div className="flex justify-center mb-8">
+          <img src="/kira-logo.jpeg" alt="Kira by Ceronix Labs" className="w-[150px] h-[44px] object-cover object-center rounded-[3px]" />
         </div>
 
         <div className="bg-kira-surface border border-kira-border rounded-md p-6">

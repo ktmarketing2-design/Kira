@@ -15,14 +15,14 @@ interface GeckoTerminalChartProps {
 export default function GeckoTerminalChart({ tokenAddress, pairAddress }: GeckoTerminalChartProps) {
   if (!pairAddress) {
     return (
-      <div className="bg-kira-surface border border-kira-border rounded-md p-3">
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-3">
         <div className="flex flex-col items-center justify-center text-center py-24 gap-3">
-          <p className="text-kira-text-muted text-sm">Chart available after token graduates to a DEX</p>
+          <p className="text-tt-fg-dim text-sm">Chart available after token graduates to a DEX</p>
           <a
             href={`https://pump.fun/coin/${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
-            className="text-kira-accent text-sm hover:underline"
+            className="text-tt-brand text-sm hover:underline"
           >
             View on Pump.fun ↗
           </a>
@@ -34,12 +34,12 @@ export default function GeckoTerminalChart({ tokenAddress, pairAddress }: GeckoT
   const src = `https://www.geckoterminal.com/solana/pools/${pairAddress}?embed=1&info=0&swaps=0&grayscale=0&light_chart=0`;
 
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-3">
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md p-3">
       <div className="w-full" style={{ height: 500 }}>
         <iframe
           src={src}
           title="GeckoTerminal chart"
-          className="w-full h-full rounded border-0"
+          className="w-full h-full rounded-md border-0"
           style={{ overflow: "hidden" }}
           scrolling="no"
           allow="clipboard-write"

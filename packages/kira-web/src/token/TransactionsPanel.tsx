@@ -111,12 +111,12 @@ export default function TransactionsPanel({
   }
 
   if (trades === null) {
-    return <div className="text-kira-text-muted text-sm py-8 text-center">Loading transactions...</div>;
+    return <div className="text-tt-fg-dim text-sm py-8 text-center">Loading transactions...</div>;
   }
 
   if (unavailable || trades.length === 0) {
     return (
-      <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center text-kira-text-muted text-sm">
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm">
         No recent transaction data available for this token.
       </div>
     );
@@ -134,22 +134,22 @@ export default function TransactionsPanel({
             <button
               key={v}
               onClick={() => setSideFilter(v)}
-              className={`px-2 py-1 rounded border ${
-                sideFilter === v ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+              className={`px-2 py-1 rounded-md border ${
+                sideFilter === v ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
               }`}
             >
               {v === "all" ? "All" : v === "buy" ? "Buys" : "Sells"}
             </button>
           ))}
         </div>
-        <span className="text-kira-text-dim">|</span>
+        <span className="text-tt-fg-faint">|</span>
         <div className="flex gap-1">
           {(["all", "whale", "mid", "small"] as const).map((v) => (
             <button
               key={v}
               onClick={() => setSizeFilter(v)}
-              className={`px-2 py-1 rounded border ${
-                sizeFilter === v ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+              className={`px-2 py-1 rounded-md border ${
+                sizeFilter === v ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
               }`}
             >
               {v === "all" ? "All sizes" : v === "whale" ? "Whales >$10K" : v === "mid" ? "Mid $1K-10K" : "Small <$1K"}
@@ -158,20 +158,20 @@ export default function TransactionsPanel({
         </div>
       </div>
 
-      <div className="bg-kira-surface border border-kira-border rounded-md divide-y divide-kira-border">
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md divide-y divide-tt-border">
         {filtered.map((t) => {
           const tags = walletTags?.get(t.walletFull) ?? [];
           return (
             <div key={t.signature} className="flex items-center justify-between px-4 py-2 text-xs font-data">
-              <span className={`w-12 font-medium ${t.side === "buy" ? "text-kira-green" : "text-kira-red"}`}>
+              <span className={`w-12 font-medium ${t.side === "buy" ? "text-tt-green" : "text-tt-red"}`}>
                 {t.side === "buy" ? "BUY" : "SELL"}
               </span>
-              <span className={`w-20 ${t.side === "buy" ? "text-kira-green" : "text-kira-red"}`}>
+              <span className={`w-20 ${t.side === "buy" ? "text-tt-green" : "text-tt-red"}`}>
                 ${t.usdValue >= 1000 ? `${(t.usdValue / 1000).toFixed(1)}K` : t.usdValue.toFixed(2)}
               </span>
               <button
                 onClick={() => onOpenProfile?.(t.walletFull)}
-                className="flex-1 text-left text-kira-accent hover:underline flex items-center gap-1"
+                className="flex-1 text-left text-tt-brand hover:underline flex items-center gap-1"
               >
                 {t.wallet}
                 {tags.map((tag) => (
@@ -180,7 +180,7 @@ export default function TransactionsPanel({
                   </span>
                 ))}
               </button>
-              <span className="text-kira-text-dim">{t.timeAgo}</span>
+              <span className="text-tt-fg-faint">{t.timeAgo}</span>
             </div>
           );
         })}
@@ -189,7 +189,7 @@ export default function TransactionsPanel({
       <div className="text-center mt-3">
         <button
           onClick={loadMore}
-          className="text-xs px-3 py-1.5 rounded border border-kira-border text-kira-text-muted hover:text-kira-text hover:border-kira-accent"
+          className="text-xs px-3 py-1.5 rounded-md border border-tt-border text-tt-fg-dim hover:text-tt-fg hover:border-tt-brand"
         >
           Load more
         </button>

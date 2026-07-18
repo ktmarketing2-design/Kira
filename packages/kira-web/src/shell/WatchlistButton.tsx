@@ -63,10 +63,10 @@ export default function WatchlistButton({ tokenAddress, tokenSymbol, tokenName, 
       <button
         onClick={toggle}
         disabled={busy || inWatchlist == null}
-        className={`text-sm rounded px-3 py-2 border disabled:opacity-50 ${
+        className={`text-sm rounded-md px-3 py-2 border disabled:opacity-50 ${
           inWatchlist
-            ? "border-kira-accent text-kira-accent bg-kira-accent/10"
-            : "border-kira-border text-kira-text-muted hover:border-kira-accent hover:text-kira-text"
+            ? "border-tt-brand text-tt-brand bg-tt-brand/10"
+            : "border-tt-border text-tt-fg-dim hover:border-tt-brand hover:text-tt-fg"
         }`}
       >
         {label}
@@ -79,7 +79,7 @@ export default function WatchlistButton({ tokenAddress, tokenSymbol, tokenName, 
       onClick={toggle}
       disabled={busy || inWatchlist == null}
       className={`text-xs hover:underline disabled:opacity-50 ${
-        inWatchlist ? "text-kira-accent" : "text-kira-text-dim"
+        inWatchlist ? "text-tt-brand" : "text-tt-fg-faint"
       }`}
     >
       {label}

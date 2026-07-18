@@ -65,8 +65,8 @@ function fmtPct(v: number | null): string {
 }
 
 function pctClass(v: number | null): string {
-  if (v == null) return "text-kira-text-dim";
-  return v >= 0 ? "text-kira-green" : "text-kira-red";
+  if (v == null) return "text-tt-fg-faint";
+  return v >= 0 ? "text-tt-green" : "text-tt-red";
 }
 
 function fmtHold(seconds: number | null): string {
@@ -117,15 +117,15 @@ export default function WalletProfileSlideOver({ address, label, onClose }: Prop
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full sm:w-[70%] max-w-2xl h-full bg-kira-surface border-l border-kira-border overflow-y-auto">
-        <div className="sticky top-0 bg-kira-surface border-b border-kira-border px-5 py-4 flex items-center justify-between">
+      <div className="relative w-full sm:w-[70%] max-w-2xl h-full bg-tt-bg-raised border-l border-tt-border overflow-y-auto">
+        <div className="sticky top-0 bg-tt-bg-raised border-b border-tt-border px-5 py-4 flex items-center justify-between">
           <div>
-            <div className="text-kira-text text-sm font-medium">{label ?? "Wallet Profile"}</div>
+            <div className="text-tt-fg text-sm font-medium">{label ?? "Wallet Profile"}</div>
             <div className="flex items-center gap-2 mt-1">
-              <span className="font-data text-xs text-kira-text-muted">{truncate(address)}</span>
+              <span className="font-data text-xs text-tt-fg-dim">{truncate(address)}</span>
               <button
                 onClick={() => navigator.clipboard.writeText(address)}
-                className="text-xs text-kira-accent hover:underline"
+                className="text-xs text-tt-brand hover:underline"
               >
                 Copy
               </button>
@@ -133,13 +133,13 @@ export default function WalletProfileSlideOver({ address, label, onClose }: Prop
                 href={`https://solscan.io/account/${address}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-kira-accent hover:underline"
+                className="text-xs text-tt-brand hover:underline"
               >
                 View on Solscan
               </a>
             </div>
           </div>
-          <button onClick={onClose} className="text-kira-text-muted hover:text-kira-text text-lg leading-none px-2">
+          <button onClick={onClose} className="text-tt-fg-dim hover:text-tt-fg text-lg leading-none px-2">
             ×
           </button>
         </div>
@@ -147,39 +147,39 @@ export default function WalletProfileSlideOver({ address, label, onClose }: Prop
         {loading && (
           <div className="p-5 space-y-3">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-16 bg-kira-surface-2 rounded animate-pulse" />
+              <div key={i} className="h-16 bg-tt-bg-panel rounded-md animate-pulse" />
             ))}
           </div>
         )}
 
         {!loading && error && (
-          <div className="p-8 text-center text-kira-text-muted text-sm">Profile data unavailable</div>
+          <div className="p-8 text-center text-tt-fg-dim text-sm">Profile data unavailable</div>
         )}
 
         {!loading && profile && (
           <div className="p-5 space-y-6">
             <section>
-              <h3 className="text-xs text-kira-text-muted uppercase tracking-wide mb-3">Performance</h3>
+              <h3 className="text-xs text-tt-fg-dim uppercase tracking-wide mb-3">Performance</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-kira-surface-2 rounded p-3">
-                  <div className="text-kira-text-dim text-xs">Win Rate</div>
-                  <div className="text-kira-text text-sm font-data mt-1">
+                <div className="bg-tt-bg-panel rounded-md p-3">
+                  <div className="text-tt-fg-faint text-xs">Win Rate</div>
+                  <div className="text-tt-fg text-sm font-data mt-1">
                     {profile.stats.winRate != null ? `${Math.round(profile.stats.winRate * 100)}%` : "—"}
                   </div>
                 </div>
-                <div className="bg-kira-surface-2 rounded p-3">
-                  <div className="text-kira-text-dim text-xs">Realized PnL</div>
+                <div className="bg-tt-bg-panel rounded-md p-3">
+                  <div className="text-tt-fg-faint text-xs">Realized PnL</div>
                   <div className={`text-sm font-data mt-1 ${pctClass(profile.stats.realizedProfit)}`}>
                     {fmtUsd(profile.stats.realizedProfit)}
                   </div>
                 </div>
-                <div className="bg-kira-surface-2 rounded p-3">
-                  <div className="text-kira-text-dim text-xs">Trades</div>
-                  <div className="text-kira-text text-sm font-data mt-1">{profile.stats.totalTrades}</div>
+                <div className="bg-tt-bg-panel rounded-md p-3">
+                  <div className="text-tt-fg-faint text-xs">Trades</div>
+                  <div className="text-tt-fg text-sm font-data mt-1">{profile.stats.totalTrades}</div>
                 </div>
-                <div className="bg-kira-surface-2 rounded p-3">
-                  <div className="text-kira-text-dim text-xs">Avg Hold</div>
-                  <div className="text-kira-text text-sm font-data mt-1">
+                <div className="bg-tt-bg-panel rounded-md p-3">
+                  <div className="text-tt-fg-faint text-xs">Avg Hold</div>
+                  <div className="text-tt-fg text-sm font-data mt-1">
                     {fmtHold(profile.stats.avgHoldingPeriodSeconds)}
                   </div>
                 </div>
@@ -189,7 +189,7 @@ export default function WalletProfileSlideOver({ address, label, onClose }: Prop
                   {profile.stats.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="text-[10px] px-2 py-0.5 rounded border border-kira-border text-kira-text-muted"
+                      className="text-[10px] px-2 py-0.5 rounded-md border border-tt-border text-tt-fg-dim"
                     >
                       {tag}
                     </span>
@@ -199,19 +199,19 @@ export default function WalletProfileSlideOver({ address, label, onClose }: Prop
             </section>
 
             <section>
-              <h3 className="text-xs text-kira-text-muted uppercase tracking-wide mb-3">Current Holdings</h3>
+              <h3 className="text-xs text-tt-fg-dim uppercase tracking-wide mb-3">Current Holdings</h3>
               {profile.holdings.length === 0 ? (
-                <p className="text-kira-text-dim text-xs">No holdings found.</p>
+                <p className="text-tt-fg-faint text-xs">No holdings found.</p>
               ) : (
                 <div className="space-y-2">
                   {profile.holdings.map((h) => (
                     <div
                       key={h.tokenAddress ?? h.symbol}
-                      className="flex items-center justify-between bg-kira-surface-2 rounded px-3 py-2 cursor-pointer hover:bg-kira-surface-2/70"
+                      className="flex items-center justify-between bg-tt-bg-panel rounded-md px-3 py-2 cursor-pointer hover:bg-tt-bg-panel/70"
                       onClick={() => h.tokenAddress && navigate(`/token/${h.tokenAddress}`)}
                     >
-                      <span className="text-kira-text text-xs">${h.symbol ?? "—"}</span>
-                      <span className="text-kira-text-muted text-xs font-data">{fmtUsd(h.usdValue)}</span>
+                      <span className="text-tt-fg text-xs">${h.symbol ?? "—"}</span>
+                      <span className="text-tt-fg-dim text-xs font-data">{fmtUsd(h.usdValue)}</span>
                       <span className={`text-xs font-data ${pctClass(h.realizedProfitPnl)}`}>
                         {fmtPct(h.realizedProfitPnl)}
                       </span>
@@ -222,23 +222,23 @@ export default function WalletProfileSlideOver({ address, label, onClose }: Prop
             </section>
 
             <section>
-              <h3 className="text-xs text-kira-text-muted uppercase tracking-wide mb-3">Recent Activity</h3>
+              <h3 className="text-xs text-tt-fg-dim uppercase tracking-wide mb-3">Recent Activity</h3>
               {profile.recentActivity.length === 0 ? (
-                <p className="text-kira-text-dim text-xs">No recent activity.</p>
+                <p className="text-tt-fg-faint text-xs">No recent activity.</p>
               ) : (
                 <div className="space-y-2">
                   {profile.recentActivity.map((a) => (
                     <div
                       key={a.txHash ?? `${a.tokenAddress}-${a.timestamp}`}
-                      className="flex items-center justify-between bg-kira-surface-2 rounded px-3 py-2 cursor-pointer hover:bg-kira-surface-2/70"
+                      className="flex items-center justify-between bg-tt-bg-panel rounded-md px-3 py-2 cursor-pointer hover:bg-tt-bg-panel/70"
                       onClick={() => a.tokenAddress && navigate(`/token/${a.tokenAddress}`)}
                     >
-                      <span className={`text-xs uppercase font-medium ${a.side === "buy" ? "text-kira-green" : "text-kira-red"}`}>
+                      <span className={`text-xs uppercase font-medium ${a.side === "buy" ? "text-tt-green" : "text-tt-red"}`}>
                         {a.side}
                       </span>
-                      <span className="text-kira-text text-xs">${a.symbol ?? "—"}</span>
-                      <span className="text-kira-text-muted text-xs font-data">{fmtUsd(a.usdValue)}</span>
-                      <span className="text-kira-text-dim text-xs">{timeAgo(a.timestamp)}</span>
+                      <span className="text-tt-fg text-xs">${a.symbol ?? "—"}</span>
+                      <span className="text-tt-fg-dim text-xs font-data">{fmtUsd(a.usdValue)}</span>
+                      <span className="text-tt-fg-faint text-xs">{timeAgo(a.timestamp)}</span>
                     </div>
                   ))}
                 </div>

@@ -6,124 +6,151 @@ function fmtUsd(value: number | null): string {
 }
 
 function StatusMark({ ok }: { ok: boolean }) {
-  return <span className={ok ? "text-kira-green" : "text-kira-yellow"}>{ok ? "✅" : "⚠️"}</span>;
+  return <span className={ok ? "text-tt-green" : "text-tt-amber"}>{ok ? "✓" : "⚠"}</span>;
 }
 
 export default function DdCardView({ card }: { card: DdCard }) {
   const symbol = card.symbol ?? "Token";
 
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-4 space-y-4">
-      <div>
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md divide-y divide-tt-border">
+      <div className="p-4">
         <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="font-display text-lg text-kira-text">${symbol}</span>
-          {card.name && <span className="text-kira-text-muted text-sm">{card.name}</span>}
+          <span className="font-display text-lg text-tt-green">${symbol}</span>
+          {card.name && <span className="text-tt-fg-dim text-xs">{card.name}</span>}
         </div>
-        <div className="flex items-center gap-2 mt-1">
-          <span className="font-data text-xs text-kira-text-muted">{card.tokenAddress}</span>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="font-body text-[10px] text-tt-fg-faint break-all">{card.tokenAddress}</span>
           <button
             onClick={() => void navigator.clipboard.writeText(card.tokenAddress)}
-            className="text-xs text-kira-accent hover:underline"
+            className="text-[10px] text-tt-green hover:underline shrink-0"
           >
             Copy
           </button>
-          <span className="text-xs text-kira-text-dim">Chain: Solana</span>
         </div>
-        {card.statusLabel && <p className="text-xs text-kira-yellow mt-2 whitespace-pre-line">{card.statusLabel}</p>}
+        <div className="flex items-center gap-2 mt-2 text-[10px]">
+          <span className="border border-tt-border rounded-md px-2 py-0.5 text-tt-fg-dim">Solana</span>
+          {card.statusLabel && <span className="text-tt-amber whitespace-pre-line">{card.statusLabel}</span>}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-kira-text-muted mb-2">Safety</div>
-          <div className="text-sm text-kira-text mb-1">Rug Score: {card.safety.rugScore}/100</div>
-          <ul className="space-y-1 text-xs text-kira-text-muted">
-            <li><StatusMark ok={card.safety.mintAuthorityRevoked} /> Mint revoked</li>
-            <li><StatusMark ok={card.safety.freezeAuthorityRevoked} /> Freeze revoked</li>
-            <li><StatusMark ok={card.safety.lpLocked} /> LP locked</li>
-            <li><StatusMark ok={card.safety.honeypotClean} /> Not honeypot</li>
-            {card.safety.top10HolderPct != null && (
-              <li className="text-kira-text-dim">Top 10: {card.safety.top10HolderPct.toFixed(1)}% supply</li>
+      <div className="p-4">
+        <div className="flex justify-between items-baseline mb-3">
+          <span className="font-display text-xl text-tt-green">{card.safety.rugScore}/100</span>
+          <span className="text-[10px] text-tt-fg-faint uppercase tracking-wide">Rug Score</span>
+        </div>
+        <ul>
+          <li className="text-xs py-1 border-t border-tt-border flex gap-1.5">
+            <StatusMark ok={card.safety.mintAuthorityRevoked} /> Mint revoked
+          </li>
+          <li className="text-xs py-1 border-t border-tt-border flex gap-1.5">
+            <StatusMark ok={card.safety.freezeAuthorityRevoked} /> Freeze revoked
+          </li>
+          <li className="text-xs py-1 border-t border-tt-border flex gap-1.5">
+            <StatusMark ok={card.safety.lpLocked} /> LP locked
+          </li>
+          <li className="text-xs py-1 border-t border-tt-border flex gap-1.5">
+            <StatusMark ok={card.safety.honeypotClean} /> Not honeypot
+          </li>
+          {card.safety.top10HolderPct != null && (
+            <li className="text-xs py-1 border-t border-tt-border text-tt-fg-dim">
+              Top 10: {card.safety.top10HolderPct.toFixed(1)}% supply
+            </li>
+          )}
+        </ul>
+      </div>
+
+      {card.volume && (
+        <div className="p-4">
+          <div className="flex justify-between items-baseline mb-3">
+            <span className={`font-display text-xl ${card.volume.verdict === "organic" ? "text-tt-green" : "text-tt-amber"}`}>
+              {card.volume.score}/100
+            </span>
+            <span className="text-[10px] text-tt-fg-faint uppercase tracking-wide">Vol Score ({card.volume.verdict})</span>
+          </div>
+          <ul>
+            {card.volume.signals.map((s) => (
+              <li
+                key={s.name}
+                className={`text-xs py-1 border-t border-tt-border flex justify-between ${s.flag ? "text-tt-amber" : "text-tt-fg-dim"}`}
+              >
+                <span>{s.name.replace(/_/g, " ")}</span>
+                <span>{s.value.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="p-4">
+        <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2.5">Market</div>
+        <div className="flex justify-between text-xs py-1 text-tt-fg-dim font-body">
+          <span>FDV</span>
+          <span className="text-tt-fg">{fmtUsd(card.market.fdvUsd)}</span>
+        </div>
+        <div className="flex justify-between text-xs py-1 text-tt-fg-dim font-body">
+          <span>Liquidity</span>
+          <span className="text-tt-fg">{fmtUsd(card.market.liquidityUsd)}</span>
+        </div>
+        <div className="flex justify-between text-xs py-1 text-tt-fg-dim font-body">
+          <span>24h Volume</span>
+          <span className="text-tt-fg">{fmtUsd(card.market.volume24hUsd)}</span>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2.5">Social</div>
+        <div className="flex justify-between text-xs py-1 text-tt-fg-dim">
+          <span>KOL mentions</span>
+          <span className="text-tt-fg">
+            {card.socialSignals.kolMentions} of {card.socialSignals.totalTrackedChannels}
+          </span>
+        </div>
+        <div className="flex justify-between text-xs py-1 text-tt-fg-dim">
+          <span>DexScreener trending</span>
+          <span className="text-tt-fg">{card.socialSignals.trending ? "Yes" : "No"}</span>
+        </div>
+      </div>
+
+      {card.deepIntel && (
+        <div className="p-4">
+          <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2.5">Deep Intel (GMGN)</div>
+          <ul className="space-y-1 text-xs">
+            <li className={(card.deepIntel.smartDegenCount ?? 0) > 3 ? "text-tt-green" : "text-tt-fg-dim"}>
+              Smart Money: {card.deepIntel.smartDegenCount ?? "—"}
+              {card.deepIntel.smartDegenCountCapped ? "+" : ""} wallets
+            </li>
+            <li className={(card.deepIntel.renownedWallets ?? 0) > 2 ? "text-tt-green" : "text-tt-fg-dim"}>
+              KOL holders: {card.deepIntel.renownedWallets ?? "—"}
+              {card.deepIntel.renownedWalletsCapped ? "+" : ""}
+            </li>
+            {card.deepIntel.ratTraderSamplePct != null && (
+              <li className={card.deepIntel.ratTraderSamplePct > 30 ? "text-tt-red" : "text-tt-fg-dim"}>
+                Rat traders: {card.deepIntel.ratTraderSamplePct.toFixed(0)}% of sample
+              </li>
+            )}
+            {card.deepIntel.bundlerSamplePct != null && (
+              <li className={card.deepIntel.bundlerSamplePct > 20 ? "text-tt-red" : "text-tt-fg-dim"}>
+                Bundler bots: {card.deepIntel.bundlerSamplePct.toFixed(0)}% of sample
+              </li>
+            )}
+            <li className="text-tt-fg-dim">
+              Snipers: {card.deepIntel.sniperCount ?? "—"}
+              {card.deepIntel.sniperCountCapped ? "+" : ""} at launch
+            </li>
+            {card.deepIntel.devHoldingPct != null && (
+              <li className="text-tt-fg-dim">Dev holding: {card.deepIntel.devHoldingPct.toFixed(1)}%</li>
+            )}
+            {card.deepIntel.freshWalletSamplePct != null && (
+              <li className="text-tt-fg-dim">Fresh wallets: {card.deepIntel.freshWalletSamplePct.toFixed(0)}% of sample</li>
             )}
           </ul>
         </div>
+      )}
 
-        <div>
-          <div className="text-xs uppercase tracking-wide text-kira-text-muted mb-2">Volume</div>
-          {card.volume ? (
-            <>
-              <div className="text-sm text-kira-text mb-1">
-                Vol Score: {card.volume.score}/100 ({card.volume.verdict})
-              </div>
-              <ul className="space-y-1 text-xs text-kira-text-muted">
-                {card.volume.signals.map((s) => (
-                  <li key={s.name} className={s.flag ? "text-kira-yellow" : ""}>
-                    {s.name.replace(/_/g, " ")}: {s.value.toFixed(2)}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <div className="text-xs text-kira-text-dim">Not available yet.</div>
-          )}
-        </div>
-
-        <div>
-          <div className="text-xs uppercase tracking-wide text-kira-text-muted mb-2">Market</div>
-          <ul className="space-y-1 text-xs text-kira-text-muted font-data">
-            <li>FDV: {fmtUsd(card.market.fdvUsd)}</li>
-            <li>Liquidity: {fmtUsd(card.market.liquidityUsd)}</li>
-            <li>24h Volume: {fmtUsd(card.market.volume24hUsd)}</li>
-          </ul>
-        </div>
-
-        <div>
-          <div className="text-xs uppercase tracking-wide text-kira-text-muted mb-2">Social</div>
-          <ul className="space-y-1 text-xs text-kira-text-muted">
-            <li>
-              KOL mentions: {card.socialSignals.kolMentions} of {card.socialSignals.totalTrackedChannels} channels
-            </li>
-            <li>DexScreener trending: {card.socialSignals.trending ? "Yes" : "No"}</li>
-          </ul>
-        </div>
-
-        {card.deepIntel && (
-          <div>
-            <div className="text-xs uppercase tracking-wide text-kira-text-muted mb-2">Deep Intel (GMGN)</div>
-            <ul className="space-y-1 text-xs text-kira-text-muted">
-              <li className={(card.deepIntel.smartDegenCount ?? 0) > 3 ? "text-kira-green" : ""}>
-                Smart Money: {card.deepIntel.smartDegenCount ?? "—"}
-                {card.deepIntel.smartDegenCountCapped ? "+" : ""} wallets
-              </li>
-              <li className={(card.deepIntel.renownedWallets ?? 0) > 2 ? "text-kira-green" : ""}>
-                KOL holders: {card.deepIntel.renownedWallets ?? "—"}
-                {card.deepIntel.renownedWalletsCapped ? "+" : ""}
-              </li>
-              {card.deepIntel.ratTraderSamplePct != null && (
-                <li className={card.deepIntel.ratTraderSamplePct > 30 ? "text-kira-red" : ""}>
-                  Rat traders: {card.deepIntel.ratTraderSamplePct.toFixed(0)}% of sample
-                </li>
-              )}
-              {card.deepIntel.bundlerSamplePct != null && (
-                <li className={card.deepIntel.bundlerSamplePct > 20 ? "text-kira-red" : ""}>
-                  Bundler bots: {card.deepIntel.bundlerSamplePct.toFixed(0)}% of sample
-                </li>
-              )}
-              <li>
-                Snipers: {card.deepIntel.sniperCount ?? "—"}
-                {card.deepIntel.sniperCountCapped ? "+" : ""} at launch
-              </li>
-              {card.deepIntel.devHoldingPct != null && <li>Dev holding: {card.deepIntel.devHoldingPct.toFixed(1)}%</li>}
-              {card.deepIntel.freshWalletSamplePct != null && (
-                <li>Fresh wallets: {card.deepIntel.freshWalletSamplePct.toFixed(0)}% of sample</li>
-              )}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <div className="text-xs uppercase tracking-wide text-kira-text-muted mb-2">Verdict (AI)</div>
-        <p className="text-sm text-kira-text-muted leading-relaxed">{card.verdictText}</p>
+      <div className="p-4">
+        <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2">Verdict (AI)</div>
+        <p className="text-xs text-tt-fg-dim leading-relaxed">{card.verdictText}</p>
       </div>
     </div>
   );

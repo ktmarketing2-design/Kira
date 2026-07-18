@@ -20,21 +20,21 @@ export default function BuyersSellersBar({ buys24h, sells24h, buyVolume24hUsd, s
   const buyPct = total > 0 ? (buys24h / total) * 100 : 50;
 
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-4">
-      <div className="flex items-center justify-between text-xs text-kira-text-muted mb-2">
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md p-4">
+      <div className="flex items-center justify-between text-xs text-tt-fg-dim mb-2">
         <span>
-          Buyers <span className="text-kira-green font-medium">{buys24h.toLocaleString("en-US")}</span>
+          Buyers <span className="text-tt-green font-medium">{buys24h.toLocaleString("en-US")}</span>
         </span>
         <span>
-          Sellers <span className="text-kira-red font-medium">{sells24h.toLocaleString("en-US")}</span>
+          Sellers <span className="text-tt-red font-medium">{sells24h.toLocaleString("en-US")}</span>
         </span>
       </div>
-      <div className="h-2 w-full rounded-full overflow-hidden bg-kira-surface-2 flex">
-        <div className="h-full bg-kira-green" style={{ width: `${buyPct}%` }} />
-        <div className="h-full bg-kira-red" style={{ width: `${100 - buyPct}%` }} />
+      <div className="h-2 w-full rounded-full overflow-hidden bg-tt-bg-panel flex">
+        <div className="h-full bg-tt-green" style={{ width: `${buyPct}%` }} />
+        <div className="h-full bg-tt-red" style={{ width: `${100 - buyPct}%` }} />
       </div>
       {buyVolume24hUsd != null && sellVolume24hUsd != null && (
-        <div className="flex items-center justify-between text-xs text-kira-text-dim mt-2">
+        <div className="flex items-center justify-between text-xs text-tt-fg-faint mt-2">
           <span>Buy Vol {formatUsd(buyVolume24hUsd)}</span>
           <span>Sell Vol {formatUsd(sellVolume24hUsd)}</span>
         </div>

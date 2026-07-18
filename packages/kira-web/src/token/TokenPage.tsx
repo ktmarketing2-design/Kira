@@ -82,8 +82,8 @@ function TokenChart({ address, card, chartMode, setChartMode }: {
       <div className="flex items-center gap-2 mb-2">
         <button
           onClick={() => setChartMode("gecko")}
-          className={`text-xs px-2 py-1 rounded border ${
-            chartMode === "gecko" ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+          className={`text-xs px-2 py-1 rounded-md border ${
+            chartMode === "gecko" ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
           }`}
         >
           📊 Chart
@@ -91,8 +91,8 @@ function TokenChart({ address, card, chartMode, setChartMode }: {
         <button
           onClick={() => setChartMode("signals")}
           title="Shows cluster alerts, signal filter matches, and KOL calls for this token on a price chart."
-          className={`text-xs px-2 py-1 rounded border ${
-            chartMode === "signals" ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+          className={`text-xs px-2 py-1 rounded-md border ${
+            chartMode === "signals" ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
           }`}
         >
           🎯 Kira Signals
@@ -101,7 +101,7 @@ function TokenChart({ address, card, chartMode, setChartMode }: {
       {chartMode === "gecko" ? (
         <GeckoTerminalChart tokenAddress={address} pairAddress={card.market.pairAddress} />
       ) : (
-        <SignalsChart tokenAddress={address} pairAddress={card.market.pairAddress} />
+        <SignalsChart tokenAddress={address} pairAddress={card.market.pairAddress} currentPriceUsd={card.market.priceUsd} />
       )}
     </div>
   );
@@ -128,15 +128,15 @@ function TokenSubTabs({
 
   return (
     <div className="mt-4">
-      <div className="flex gap-1 mb-3 border-b border-kira-border overflow-x-auto">
+      <div className="flex gap-1 mb-3 border-b border-tt-border overflow-x-auto">
         {SUB_TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setSubTab(t.id)}
             className={`text-sm px-3 py-2 border-b-2 -mb-px whitespace-nowrap ${
               subTab === t.id
-                ? "border-kira-accent text-kira-accent"
-                : "border-transparent text-kira-text-muted hover:text-kira-text"
+                ? "border-tt-brand text-tt-brand"
+                : "border-transparent text-tt-fg-dim hover:text-tt-fg"
             }`}
           >
             {t.label}
@@ -159,25 +159,25 @@ function TokenSubTabs({
         (fullData ? (
           <HoldersTab holders={fullData.holders} onOpenProfile={onOpenProfile} />
         ) : (
-          <div className="text-center text-kira-text-muted text-sm py-8">Loading holders...</div>
+          <div className="text-center text-tt-fg-dim text-sm py-8">Loading holders...</div>
         ))}
       {subTab === "traders" &&
         (fullData ? (
           <TradersTab traders={fullData.traders} onOpenProfile={onOpenProfile} />
         ) : (
-          <div className="text-center text-kira-text-muted text-sm py-8">Loading traders...</div>
+          <div className="text-center text-tt-fg-dim text-sm py-8">Loading traders...</div>
         ))}
       {subTab === "devInfo" &&
         (fullData ? (
           <DevInfoTab dev={fullData.dev} />
         ) : (
-          <div className="text-center text-kira-text-muted text-sm py-8">Loading dev info...</div>
+          <div className="text-center text-tt-fg-dim text-sm py-8">Loading dev info...</div>
         ))}
       {subTab === "stats" &&
         (fullData ? (
           <StatsTab priceStats={fullData.priceStats} pool={fullData.pool} metaStats={fullData.meta} />
         ) : (
-          <div className="text-center text-kira-text-muted text-sm py-8">Loading stats...</div>
+          <div className="text-center text-tt-fg-dim text-sm py-8">Loading stats...</div>
         ))}
     </div>
   );
@@ -192,13 +192,13 @@ function TokenSidebar({ card, address, onRefresh }: { card: DdCard; address: str
       <div className="flex gap-3">
         <button
           onClick={() => setBuyModalOpen(true)}
-          className="flex-1 text-center bg-kira-accent text-kira-bg rounded px-3 py-2 text-sm font-medium hover:opacity-90"
+          className="flex-1 text-center bg-tt-brand text-tt-bg rounded-md px-3 py-2 text-sm font-medium hover:opacity-90"
         >
           💰 Buy Token
         </button>
         <button
           onClick={onRefresh}
-          className="text-sm bg-kira-surface-2 border border-kira-border text-kira-text rounded px-3 py-2 hover:border-kira-accent"
+          className="text-sm bg-tt-bg-panel border border-tt-border text-tt-fg rounded-md px-3 py-2 hover:border-tt-brand"
         >
           Refresh DD
         </button>
@@ -209,7 +209,7 @@ function TokenSidebar({ card, address, onRefresh }: { card: DdCard; address: str
         tokenName={card.name}
         variant="button"
       />
-      <p className="text-xs text-kira-text-dim font-data truncate" title={address}>
+      <p className="text-xs text-tt-fg-faint font-data truncate" title={address}>
         {address}
       </p>
 
@@ -295,27 +295,27 @@ export default function TokenPage() {
   if (!address) {
     return (
       <div>
-        <h1 className="font-display text-lg text-kira-text mb-4">Token Search</h1>
+        <h1 className="font-display text-lg text-tt-fg mb-4">Token Search</h1>
         <form onSubmit={handleSearch} className="flex gap-2 max-w-lg">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Solana token address"
-            className="flex-1 bg-kira-surface-2 border border-kira-border rounded px-3 py-2 text-xs font-data text-kira-text placeholder:text-kira-text-dim focus:outline-none focus:border-kira-accent"
+            className="flex-1 bg-tt-bg-panel border border-tt-border rounded-md px-3 py-2 text-xs font-data text-tt-fg placeholder:text-tt-fg-faint focus:outline-none focus:border-tt-brand"
           />
-          <button type="submit" className="bg-kira-accent text-kira-bg rounded px-4 py-2 text-sm font-medium">
+          <button type="submit" className="bg-tt-brand text-tt-bg rounded-md px-4 py-2 text-sm font-medium">
             Search
           </button>
         </form>
-        {error && <p className="text-xs text-kira-red mt-2">{error}</p>}
+        {error && <p className="text-xs text-tt-red mt-2">{error}</p>}
       </div>
     );
   }
 
   return (
     <div>
-      {loading && <div className="text-kira-text-muted text-sm mb-4">Generating Deep Dive...</div>}
-      {error && <div className="text-kira-red text-sm mb-4">{error}</div>}
+      {loading && <div className="text-tt-fg-dim text-sm mb-4">Generating Deep Dive...</div>}
+      {error && <div className="text-tt-red text-sm mb-4">{error}</div>}
       {card && fullData && <TokenHeader address={address} meta={fullData.meta} />}
       {card && (isDesktop ? (
         // Desktop: two columns, left 65% chart + sub-tabs, right 35% scrollable sidebar.

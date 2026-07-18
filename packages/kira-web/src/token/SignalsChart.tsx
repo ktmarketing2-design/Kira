@@ -4,6 +4,8 @@ import {
   CrosshairMode,
   type IChartApi,
   type ISeriesApi,
+  type SeriesMarker,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { apiRequest } from "../lib/api.js";
@@ -41,22 +43,88 @@ const EVENT_MARKER: Record<string, { shape: "arrowUp" | "arrowDown" | "circle"; 
   signal_filter_match: { shape: "circle", color: "#7c6fcd" },
 };
 
+/** Markers must land exactly on a real candle's time value -- lightweight-charts positions
+ * aboveBar/belowBar markers relative to that bar's actual OHLC, and a raw event timestamp
+ * essentially never lands on the candle grid exactly (candles are bucketed every 900s/3600s/etc,
+ * events fire whenever a wallet trades). Without snapping, markers with mismatched times were
+ * observed stacking at the same rendered position instead of spreading across the price line. */
+function snapToNearestCandle(times: number[], target: number): number {
+  if (times.length === 0) return target;
+  let lo = 0;
+  let hi = times.length - 1;
+  if (target <= times[0]) return times[0];
+  if (target >= times[hi]) return times[hi];
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] === target) return target;
+    if (times[mid] < target) lo = mid + 1;
+    else hi = mid;
+  }
+  const after = times[lo];
+  const before = times[lo - 1];
+  return after - target < target - before ? after : before;
+}
+
 /**
  * Kira Signals: candles + on-chain event markers only (cluster buys/sells, signal filter
  * matches, KOL calls). No drawing tools, no trading UI — that's the GeckoTerminal embed's job.
  * OHLCV comes from kira-api's cached /token/:address/ohlcv proxy, never GeckoTerminal directly
  * from the browser (avoids CORS and keeps GeckoTerminal's rate limit off end users).
  */
-export default function SignalsChart({ tokenAddress, pairAddress }: { tokenAddress: string; pairAddress: string | null }) {
+export default function SignalsChart({
+  tokenAddress,
+  pairAddress,
+  currentPriceUsd,
+}: {
+  tokenAddress: string;
+  pairAddress: string | null;
+  currentPriceUsd?: number | null;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const candleTimesRef = useRef<number[]>([]);
+  const eventsRef = useRef<{ alerts: ChartEvent[]; kolCalls: KolCallEvent[] } | null>(null);
 
   const [timeframe, setTimeframe] = useState<Timeframe>("15m");
   const [loading, setLoading] = useState(true);
   const [candleCount, setCandleCount] = useState(0);
   const [hasEvents, setHasEvents] = useState<boolean | null>(null); // null = not checked yet
+
+  function applyMarkers() {
+    const events = eventsRef.current;
+    const times = candleTimesRef.current;
+    if (!events || !seriesRef.current || times.length === 0) return;
+
+    const markers: SeriesMarker<Time>[] = [
+      ...events.alerts.map((a) => {
+        const meta = EVENT_MARKER[a.kind] ?? EVENT_MARKER.cluster_buy;
+        const walletText = a.walletCount != null ? `${a.walletCount} wallets` : "";
+        const usdText = a.totalUsd != null ? `$${a.totalUsd.toLocaleString("en-US")}` : "";
+        const rawTime = Math.floor(new Date(a.timestamp).getTime() / 1000);
+        return {
+          time: snapToNearestCandle(times, rawTime) as UTCTimestamp,
+          position: meta.shape === "arrowDown" ? ("aboveBar" as const) : ("belowBar" as const),
+          color: meta.color,
+          shape: meta.shape,
+          text: [walletText, usdText].filter(Boolean).join(" "),
+        };
+      }),
+      ...events.kolCalls.map((c) => {
+        const rawTime = Math.floor(new Date(c.timestamp).getTime() / 1000);
+        return {
+          time: snapToNearestCandle(times, rawTime) as UTCTimestamp,
+          position: "aboveBar" as const,
+          color: "#7c6fcd",
+          shape: "circle" as const,
+          text: "KOL call",
+        };
+      }),
+    ].sort((a, b) => (a.time as number) - (b.time as number));
+
+    seriesRef.current.setMarkers(markers);
+  }
 
   // Chart lifecycle, created once.
   useEffect(() => {
@@ -114,6 +182,21 @@ export default function SignalsChart({ tokenAddress, pairAddress }: { tokenAddre
     )
       .then((res) => {
         const sorted = [...res.candles].sort((a, b) => a.timestamp - b.timestamp);
+
+        // The most recent candle's close can come back 0 from the aggregation source when no
+        // trades have landed in that bucket yet -- the right-axis last-value label then shows
+        // "0.00" since lightweight-charts derives it straight from the last bar's close. Backfill
+        // with the real current price (DD card's live market price) when that happens, rather
+        // than showing a number that's obviously wrong.
+        if (sorted.length > 0 && currentPriceUsd != null) {
+          const last = sorted[sorted.length - 1];
+          if (!last.close || last.close <= 0) {
+            last.close = currentPriceUsd;
+            last.high = Math.max(last.high, currentPriceUsd);
+            last.low = last.low > 0 ? Math.min(last.low, currentPriceUsd) : currentPriceUsd;
+          }
+        }
+
         seriesRef.current?.setData(
           sorted.map((c) => ({
             time: c.timestamp as UTCTimestamp,
@@ -131,53 +214,37 @@ export default function SignalsChart({ tokenAddress, pairAddress }: { tokenAddre
           })),
         );
         setCandleCount(sorted.length);
+        candleTimesRef.current = sorted.map((c) => c.timestamp);
         chartRef.current?.timeScale().fitContent();
+        applyMarkers();
       })
       .catch(() => setCandleCount(0))
       .finally(() => setLoading(false));
-  }, [tokenAddress, pairAddress, timeframe]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenAddress, pairAddress, timeframe, currentPriceUsd]);
 
-  // Load event markers once per token.
+  // Load event markers once per token; re-applied whenever the candle grid (re)loads too, since
+  // snapping targets depend on which candles are currently on the chart.
   useEffect(() => {
     apiRequest<{ alerts: ChartEvent[]; kolCalls: KolCallEvent[] }>("GET", `/token/${tokenAddress}/events`)
       .then((res) => {
         setHasEvents(res.alerts.length > 0 || res.kolCalls.length > 0);
-        if (!seriesRef.current) return;
-        const markers = [
-          ...res.alerts.map((a) => {
-            const meta = EVENT_MARKER[a.kind] ?? EVENT_MARKER.cluster_buy;
-            const walletText = a.walletCount != null ? `${a.walletCount} wallets` : "";
-            const usdText = a.totalUsd != null ? `$${a.totalUsd.toLocaleString("en-US")}` : "";
-            return {
-              time: Math.floor(new Date(a.timestamp).getTime() / 1000) as UTCTimestamp,
-              position: meta.shape === "arrowDown" ? ("aboveBar" as const) : ("belowBar" as const),
-              color: meta.color,
-              shape: meta.shape,
-              text: [walletText, usdText].filter(Boolean).join(" "),
-            };
-          }),
-          ...res.kolCalls.map((c) => ({
-            time: Math.floor(new Date(c.timestamp).getTime() / 1000) as UTCTimestamp,
-            position: "aboveBar" as const,
-            color: "#7c6fcd",
-            shape: "circle" as const,
-            text: "KOL call",
-          })),
-        ].sort((a, b) => (a.time as number) - (b.time as number));
-        seriesRef.current.setMarkers(markers);
+        eventsRef.current = res;
+        applyMarkers();
       })
       .catch(() => setHasEvents(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenAddress]);
 
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-3">
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md p-3">
       <div className="flex flex-wrap items-center gap-1 mb-3">
         {TIMEFRAMES.map((tf) => (
           <button
             key={tf}
             onClick={() => setTimeframe(tf)}
-            className={`text-xs px-2 py-1 rounded border ${
-              timeframe === tf ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+            className={`text-xs px-2 py-1 rounded-md border ${
+              timeframe === tf ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
             }`}
           >
             {tf}
@@ -187,7 +254,7 @@ export default function SignalsChart({ tokenAddress, pairAddress }: { tokenAddre
 
       <div className="relative">
         {!pairAddress ? (
-          <div className="text-kira-text-muted text-sm py-16 text-center">
+          <div className="text-tt-fg-dim text-sm py-16 text-center">
             No trading pair found for this token yet, chart unavailable.
           </div>
         ) : (
@@ -195,14 +262,14 @@ export default function SignalsChart({ tokenAddress, pairAddress }: { tokenAddre
             <div ref={containerRef} style={{ height: 500 }} className={loading ? "animate-pulse" : undefined} />
 
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-kira-bg/60">
-                <div className="text-kira-text-dim text-sm animate-pulse">Loading chart...</div>
+              <div className="absolute inset-0 flex items-center justify-center bg-tt-bg/60">
+                <div className="text-tt-fg-faint text-sm animate-pulse">Loading chart...</div>
               </div>
             )}
 
             {!loading && hasEvents === false && (
-              <div className="absolute inset-0 flex items-center justify-center bg-kira-bg/70 pointer-events-none">
-                <p className="text-kira-text-muted text-sm text-center max-w-xs leading-relaxed px-4">
+              <div className="absolute inset-0 flex items-center justify-center bg-tt-bg/70 pointer-events-none">
+                <p className="text-tt-fg-dim text-sm text-center max-w-xs leading-relaxed px-4">
                   No Kira signals yet for this token.
                   <br />
                   Signals appear when your tracked wallets buy,
@@ -216,7 +283,7 @@ export default function SignalsChart({ tokenAddress, pairAddress }: { tokenAddre
       </div>
 
       {pairAddress && !loading && candleCount === 0 && (
-        <p className="text-xs text-kira-text-dim mt-2">No candle data returned for this timeframe yet.</p>
+        <p className="text-xs text-tt-fg-faint mt-2">No candle data returned for this timeframe yet.</p>
       )}
     </div>
   );

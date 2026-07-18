@@ -105,8 +105,8 @@ function fmtUsd(v: number | null): string {
 }
 
 function pnlClass(v: number | null): string {
-  if (v == null) return "text-kira-text-muted";
-  return v > 0 ? "text-kira-green" : v < 0 ? "text-kira-red" : "text-kira-text-muted";
+  if (v == null) return "text-tt-fg-dim";
+  return v > 0 ? "text-tt-green" : v < 0 ? "text-tt-red" : "text-tt-fg-dim";
 }
 
 function HolderTraderTable({
@@ -117,14 +117,14 @@ function HolderTraderTable({
   onOpenProfile: (address: string) => void;
 }) {
   if (rows.length === 0) {
-    return <div className="text-center text-kira-text-muted text-sm py-8">No data available.</div>;
+    return <div className="text-center text-tt-fg-dim text-sm py-8">No data available.</div>;
   }
 
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md overflow-x-auto">
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs text-kira-text-muted border-b border-kira-border">
+          <tr className="text-left text-xs text-tt-fg-dim border-b border-tt-border">
             <th className="px-3 py-2 font-normal">#</th>
             <th className="px-3 py-2 font-normal">Wallet</th>
             <th className="px-3 py-2 font-normal text-right">% Supply</th>
@@ -138,16 +138,16 @@ function HolderTraderTable({
           {rows.map((h, i) => (
             <tr
               key={h.address ?? i}
-              className="border-b border-kira-border last:border-0 cursor-pointer hover:bg-kira-surface-2/50"
+              className="border-b border-tt-border last:border-0 cursor-pointer hover:bg-tt-bg-panel/50"
               onClick={() => h.address && onOpenProfile(h.address)}
             >
-              <td className="px-3 py-2 text-kira-text-dim">{i + 1}</td>
-              <td className="px-3 py-2 font-data text-xs text-kira-text">{h.address ? truncate(h.address) : "—"}</td>
-              <td className="px-3 py-2 text-right font-data text-xs text-kira-text-muted">
+              <td className="px-3 py-2 text-tt-fg-faint">{i + 1}</td>
+              <td className="px-3 py-2 font-data text-xs text-tt-fg">{h.address ? truncate(h.address) : "—"}</td>
+              <td className="px-3 py-2 text-right font-data text-xs text-tt-fg-dim">
                 {h.amountPercentage != null ? `${(h.amountPercentage * 100).toFixed(2)}%` : "—"}
               </td>
-              <td className="px-3 py-2 text-right font-data text-xs text-kira-text-muted">{fmtUsd(h.usdValue)}</td>
-              <td className="px-3 py-2 text-right font-data text-xs text-kira-text-muted">{fmtUsd(h.costBasis)}</td>
+              <td className="px-3 py-2 text-right font-data text-xs text-tt-fg-dim">{fmtUsd(h.usdValue)}</td>
+              <td className="px-3 py-2 text-right font-data text-xs text-tt-fg-dim">{fmtUsd(h.costBasis)}</td>
               <td className={`px-3 py-2 text-right font-data text-xs ${pnlClass(h.realizedProfit)}`}>
                 {h.realizedProfit != null ? fmtUsd(h.realizedProfit) : "—"}
               </td>
@@ -176,7 +176,7 @@ export function TradersTab({ traders, onOpenProfile }: { traders: TokenFullHolde
 
 export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
   if (!dev.address) {
-    return <div className="text-center text-kira-text-muted text-sm py-8">No dev info available.</div>;
+    return <div className="text-center text-tt-fg-dim text-sm py-8">No dev info available.</div>;
   }
 
   const isSerialRugger =
@@ -185,12 +185,12 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
   return (
     <div className="py-2 space-y-4">
       <div>
-        <div className="text-xs text-kira-text-muted mb-1">DEV WALLET</div>
+        <div className="text-xs text-tt-fg-dim mb-1">DEV WALLET</div>
         <div className="flex items-center gap-2">
-          <span className="font-data text-sm text-kira-text">{truncate(dev.address)}</span>
+          <span className="font-data text-sm text-tt-fg">{truncate(dev.address)}</span>
           <button
             onClick={() => navigator.clipboard.writeText(dev.address ?? "")}
-            className="text-kira-accent text-xs hover:opacity-80"
+            className="text-tt-brand text-xs hover:opacity-80"
           >
             ⎘
           </button>
@@ -198,13 +198,13 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
             href={`https://gmgn.ai/sol/address/${dev.address}`}
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-kira-text-muted hover:text-kira-text"
+            className="text-xs text-tt-fg-dim hover:text-tt-fg"
           >
             View on GMGN ↗
           </a>
         </div>
         {isSerialRugger && (
-          <div className="mt-2 inline-block text-xs text-kira-red border border-kira-red/50 bg-kira-red/10 rounded px-2 py-1">
+          <div className="mt-2 inline-block text-xs text-tt-red border border-tt-red/50 bg-tt-red/10 rounded-md px-2 py-1">
             ⚠️ Serial rugger — {((dev.history?.openRatio ?? 0) * 100).toFixed(0)}% open rate across{" "}
             {dev.history?.totalCreated} launches
           </div>
@@ -212,19 +212,19 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-kira-surface-2 rounded p-3">
-          <div className="text-xs text-kira-text-muted mb-1">Tokens Created</div>
-          <div className="text-sm font-medium text-kira-text">{dev.history?.totalCreated ?? dev.tokensCreated ?? "—"}</div>
+        <div className="bg-tt-bg-panel rounded-md p-3">
+          <div className="text-xs text-tt-fg-dim mb-1">Tokens Created</div>
+          <div className="text-sm font-medium text-tt-fg">{dev.history?.totalCreated ?? dev.tokensCreated ?? "—"}</div>
         </div>
-        <div className="bg-kira-surface-2 rounded p-3">
-          <div className="text-xs text-kira-text-muted mb-1">Open Rate</div>
-          <div className="text-sm font-medium text-kira-text">
+        <div className="bg-tt-bg-panel rounded-md p-3">
+          <div className="text-xs text-tt-fg-dim mb-1">Open Rate</div>
+          <div className="text-sm font-medium text-tt-fg">
             {dev.history?.openRatio != null ? `${(dev.history.openRatio * 100).toFixed(0)}%` : "—"}
           </div>
         </div>
-        <div className="bg-kira-surface-2 rounded p-3">
-          <div className="text-xs text-kira-text-muted mb-1">Fund Source</div>
-          <div className="text-sm font-medium text-kira-text font-data">
+        <div className="bg-tt-bg-panel rounded-md p-3">
+          <div className="text-xs text-tt-fg-dim mb-1">Fund Source</div>
+          <div className="text-sm font-medium text-tt-fg font-data">
             {dev.fundSource ? truncate(dev.fundSource) : "—"}
           </div>
         </div>
@@ -232,22 +232,22 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
 
       {dev.history?.athToken && (
         <div>
-          <div className="text-xs text-kira-text-muted mb-2">BEST PROJECT (ATH)</div>
-          <div className="bg-kira-surface-2 rounded p-3 text-sm">
-            <span className="font-medium text-kira-text">${dev.history.athToken.token_symbol}</span>
-            <span className="text-kira-text-muted ml-2">{dev.history.athToken.token_name}</span>
-            <span className="text-kira-green ml-2">ATH {fmtUsd(dev.history.athToken.ath_mc ?? null)}</span>
+          <div className="text-xs text-tt-fg-dim mb-2">BEST PROJECT (ATH)</div>
+          <div className="bg-tt-bg-panel rounded-md p-3 text-sm">
+            <span className="font-medium text-tt-fg">${dev.history.athToken.token_symbol}</span>
+            <span className="text-tt-fg-dim ml-2">{dev.history.athToken.token_name}</span>
+            <span className="text-tt-green ml-2">ATH {fmtUsd(dev.history.athToken.ath_mc ?? null)}</span>
           </div>
         </div>
       )}
 
       {dev.history && dev.history.tokens.length > 0 && (
         <div>
-          <div className="text-xs text-kira-text-muted mb-2">PREVIOUS LAUNCHES</div>
-          <div className="bg-kira-surface border border-kira-border rounded-md overflow-x-auto">
+          <div className="text-xs text-tt-fg-dim mb-2">PREVIOUS LAUNCHES</div>
+          <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-kira-text-muted border-b border-kira-border">
+                <tr className="text-left text-xs text-tt-fg-dim border-b border-tt-border">
                   <th className="px-3 py-2 font-normal">Token</th>
                   <th className="px-3 py-2 font-normal text-right">ATH MC</th>
                   <th className="px-3 py-2 font-normal text-right">Current MC</th>
@@ -257,18 +257,18 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
               </thead>
               <tbody>
                 {dev.history.tokens.map((t) => (
-                  <tr key={t.address} className="border-b border-kira-border last:border-0">
-                    <td className="px-3 py-2 font-medium text-kira-text">${t.symbol ?? "?"}</td>
-                    <td className="px-3 py-2 text-right text-kira-green font-data text-xs">{fmtUsd(t.athMarketCap)}</td>
-                    <td className="px-3 py-2 text-right text-kira-text-muted font-data text-xs">{fmtUsd(t.marketCap)}</td>
-                    <td className="px-3 py-2 text-right text-kira-text-muted font-data text-xs">
+                  <tr key={t.address} className="border-b border-tt-border last:border-0">
+                    <td className="px-3 py-2 font-medium text-tt-fg">${t.symbol ?? "?"}</td>
+                    <td className="px-3 py-2 text-right text-tt-green font-data text-xs">{fmtUsd(t.athMarketCap)}</td>
+                    <td className="px-3 py-2 text-right text-tt-fg-dim font-data text-xs">{fmtUsd(t.marketCap)}</td>
+                    <td className="px-3 py-2 text-right text-tt-fg-dim font-data text-xs">
                       {t.holders?.toLocaleString() ?? "—"}
                     </td>
                     <td className="px-3 py-2 text-center text-xs">
                       {t.isOpen ? (
-                        <span className="text-kira-green">✅ Live</span>
+                        <span className="text-tt-green">✅ Live</span>
                       ) : (
-                        <span className="text-kira-red">💀 Dead</span>
+                        <span className="text-tt-red">💀 Dead</span>
                       )}
                     </td>
                   </tr>
@@ -284,9 +284,9 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
 
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-kira-border last:border-0">
-      <span className="text-xs text-kira-text-muted">{label}</span>
-      <span className={`text-xs font-medium font-data ${color ?? "text-kira-text"}`}>{value}</span>
+    <div className="flex items-center justify-between py-2 border-b border-tt-border last:border-0">
+      <span className="text-xs text-tt-fg-dim">{label}</span>
+      <span className={`text-xs font-medium font-data ${color ?? "text-tt-fg"}`}>{value}</span>
     </div>
   );
 }
@@ -307,26 +307,26 @@ export function StatsTab({
 }) {
   return (
     <div className="py-2">
-      <div className="text-xs text-kira-text-muted mb-1">PRICE CHANGES</div>
+      <div className="text-xs text-tt-fg-dim mb-1">PRICE CHANGES</div>
       <StatRow label="1 min" value={fmtPct(priceStats.change1m)} color={pnlClass(priceStats.change1m)} />
       <StatRow label="5 min" value={fmtPct(priceStats.change5m)} color={pnlClass(priceStats.change5m)} />
       <StatRow label="1 hour" value={fmtPct(priceStats.change1h)} color={pnlClass(priceStats.change1h)} />
       <StatRow label="6 hours" value={fmtPct(priceStats.change6h)} color={pnlClass(priceStats.change6h)} />
       <StatRow label="24 hours" value={fmtPct(priceStats.change24h)} color={pnlClass(priceStats.change24h)} />
 
-      <div className="text-xs text-kira-text-muted mt-4 mb-1">BUYS / SELLS</div>
+      <div className="text-xs text-tt-fg-dim mt-4 mb-1">BUYS / SELLS</div>
       <StatRow label="1 min" value={`${priceStats.buys1m ?? 0} / ${priceStats.sells1m ?? 0}`} />
       <StatRow label="5 min" value={`${priceStats.buys5m ?? 0} / ${priceStats.sells5m ?? 0}`} />
       <StatRow label="1 hour" value={`${priceStats.buys1h ?? 0} / ${priceStats.sells1h ?? 0}`} />
       <StatRow label="24 hours" value={`${priceStats.buys24h ?? 0} / ${priceStats.sells24h ?? 0}`} />
 
-      <div className="text-xs text-kira-text-muted mt-4 mb-1">TOKEN INFO</div>
-      <StatRow label="ATH Price" value={metaStats.athPrice != null ? `$${metaStats.athPrice.toFixed(8)}` : "—"} color="text-kira-green" />
+      <div className="text-xs text-tt-fg-dim mt-4 mb-1">TOKEN INFO</div>
+      <StatRow label="ATH Price" value={metaStats.athPrice != null ? `$${metaStats.athPrice.toFixed(8)}` : "—"} color="text-tt-green" />
       <StatRow label="Total Supply" value={metaStats.totalSupply != null ? metaStats.totalSupply.toLocaleString() : "—"} />
       <StatRow label="Circulating" value={metaStats.circulatingSupply != null ? metaStats.circulatingSupply.toLocaleString() : "—"} />
       <StatRow label="Locked Liquidity" value={metaStats.lockedRatio != null ? `${(metaStats.lockedRatio * 100).toFixed(1)}%` : "—"} />
 
-      <div className="text-xs text-kira-text-muted mt-4 mb-1">POOL INFO</div>
+      <div className="text-xs text-tt-fg-dim mt-4 mb-1">POOL INFO</div>
       <StatRow label="Exchange" value={pool?.exchange ?? "—"} />
       <StatRow label="Pool Liquidity" value={fmtUsd(pool?.liquidity ?? null)} />
       <StatRow label="Base Reserve" value={pool?.baseReserve != null ? pool.baseReserve.toLocaleString() : "—"} />

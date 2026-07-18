@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import LandingPage from "./landing/LandingPage.js";
 import LoginPage from "./auth/LoginPage.js";
 import LinkPage from "./auth/LinkPage.js";
@@ -13,11 +13,11 @@ import ChartSharePage from "./token/ChartSharePage.js";
 import KolPage from "./kol/KolPage.js";
 import DiscoverPage from "./discover/DiscoverPage.js";
 import SignalsPage from "./signals/SignalsPage.js";
-import ChartStudioPage from "./chart/ChartStudioPage.js";
 import WatchlistPage from "./watchlist/WatchlistPage.js";
 import PnlPage from "./pnl/PnlPage.js";
 import SettingsPage from "./settings/SettingsPage.js";
 import UpgradePage from "./settings/UpgradePage.js";
+
 
 function Protected({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +25,12 @@ function Protected({ children }: { children: React.ReactNode }) {
       <Shell>{children}</Shell>
     </AuthGuard>
   );
+}
+
+/** Redirect /chart/:address → /token/:address so old links keep working */
+function ChartRedirect() {
+  const { address } = useParams<{ address: string }>();
+  return <Navigate to={`/token/${address}`} replace />;
 }
 
 export default function App() {
@@ -44,7 +50,8 @@ export default function App() {
       <Route path="/kol" element={<Protected><KolPage /></Protected>} />
       <Route path="/discover" element={<Protected><DiscoverPage /></Protected>} />
       <Route path="/signals" element={<Protected><SignalsPage /></Protected>} />
-      <Route path="/chart/:address" element={<Protected><ChartStudioPage /></Protected>} />
+      {/* /chart/:address used to be a separate page — now the token page IS the chart studio */}
+      <Route path="/chart/:address" element={<Protected><ChartRedirect /></Protected>} />
       <Route path="/watchlist" element={<Protected><WatchlistPage /></Protected>} />
       <Route path="/pnl" element={<Protected><PnlPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />

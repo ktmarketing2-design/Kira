@@ -71,4 +71,34 @@ router.post("/:id/read", async (req, res) => {
   res.status(204).send();
 });
 
+/** Sprint 10 Bug 4: replaces the Dashboard's decorative/static activity graphic with a real
+ * hourly count of this user's cluster alerts over the last 24h. No new table -- kira_alerts
+ * already has created_at, this just buckets it into 24 hourly counters in JS rather than adding
+ * a SQL date_trunc grouping query for a single lightweight dashboard widget. */
+router.get("/sparkline", async (req, res) => {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("kira_alerts")
+    .select("created_at")
+    .eq("user_id", req.user!.id)
+    .gte("created_at", since);
+
+  if (error) {
+    console.error("[kira-api:alerts] sparkline query failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  const now = Date.now();
+  const counts = new Array(24).fill(0);
+  for (const row of data ?? []) {
+    const ageMs = now - new Date(row.created_at).getTime();
+    const hoursAgo = Math.floor(ageMs / (60 * 60 * 1000));
+    if (hoursAgo >= 0 && hoursAgo < 24) counts[23 - hoursAgo]++;
+  }
+
+  res.json({ hours: counts.map((count, i) => ({ hour: i, count })) });
+});
+
 export default router;

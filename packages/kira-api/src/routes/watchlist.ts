@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { jupiter } from "@ceronix/kira-shared";
 import { supabase } from "../lib/supabase.js";
 import { requireWatchlistCapacity } from "../middleware/tier.js";
 
@@ -8,7 +9,7 @@ const router = Router();
 router.get("/", async (req, res) => {
   const { data, error } = await supabase
     .from("kira_watchlist")
-    .select("id, token_address, token_symbol, token_name, added_at, notes")
+    .select("id, token_address, token_symbol, token_name, added_at, notes, price_at_add")
     .eq("user_id", req.user!.id)
     .order("added_at", { ascending: false });
 
@@ -18,14 +19,22 @@ router.get("/", async (req, res) => {
     return;
   }
 
+  const rows = data ?? [];
+  // Current price fetched here (not client-side) so the Dashboard Watchlist Snapshot can compute
+  // real % change without a second route -- jupiter.getPrice is the same lightweight lookup
+  // POST /watchlist uses for price_at_add, run in parallel per token rather than sequentially.
+  const currentPrices = await Promise.all(rows.map((t) => jupiter.getPrice(t.token_address).catch(() => null)));
+
   res.json({
-    tokens: (data ?? []).map((t) => ({
+    tokens: rows.map((t, i) => ({
       id: t.id,
       tokenAddress: t.token_address,
       tokenSymbol: t.token_symbol,
       tokenName: t.token_name,
       addedAt: t.added_at,
       notes: t.notes,
+      priceAtAdd: t.price_at_add,
+      currentPriceUsd: currentPrices[i],
     })),
   });
 });
@@ -43,6 +52,13 @@ router.post("/", requireWatchlistCapacity, async (req, res) => {
     return;
   }
 
+  // Sprint 10 Bug 3: snapshot the price at add-time so the dashboard Watchlist Snapshot can show
+  // real % change later instead of dashes. Uses the lightweight Jupiter price lookup (same one
+  // token.ts's header uses), not a full DD job -- adding a watchlist entry shouldn't have to wait
+  // on a DD queue round-trip. null if Jupiter has no price for this token; that's an honest
+  // "unknown," not a fabricated 0.
+  const priceAtAdd = await jupiter.getPrice(parsed.data.tokenAddress).catch(() => null);
+
   const { data, error } = await supabase
     .from("kira_watchlist")
     .insert({
@@ -50,8 +66,9 @@ router.post("/", requireWatchlistCapacity, async (req, res) => {
       token_address: parsed.data.tokenAddress,
       token_symbol: parsed.data.tokenSymbol,
       token_name: parsed.data.tokenName,
+      price_at_add: priceAtAdd,
     })
-    .select("id, token_address, token_symbol, token_name, added_at, notes")
+    .select("id, token_address, token_symbol, token_name, added_at, notes, price_at_add")
     .single();
 
   if (error) {
@@ -72,6 +89,7 @@ router.post("/", requireWatchlistCapacity, async (req, res) => {
       tokenName: data.token_name,
       addedAt: data.added_at,
       notes: data.notes,
+      priceAtAdd: data.price_at_add,
     },
   });
 });

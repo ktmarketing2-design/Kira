@@ -14,6 +14,7 @@ declare global {
       user?: { id: string; email?: string };
       userTier?: KiraTier;
       profile?: KiraProfile;
+      rawBody?: Buffer;
     }
   }
 }

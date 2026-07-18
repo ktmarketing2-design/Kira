@@ -332,4 +332,85 @@ router.delete("/user-sources/:id", async (req, res) => {
   res.status(204).send();
 });
 
+// ============================================================================
+// Notification preferences (Sprint 10 Bug 5): the Leaderboard tab's per-row Chart Bubbles/Toast/
+// Alerts toggles were pure local component state, discarded on refresh. kira_kol_notification_prefs
+// scopes source_id to kira_kol_sources (the curated list) only, per the sprint's own migration --
+// personal (kira_user_kol_sources) rows have no FK target here, so their row toggles necessarily
+// stay local-only, same as before. This isn't an oversight: persisting preferences for a source
+// the user could delete/re-add at will (personal sources) is a different feature than persisting
+// them for the fixed curated list, and the schema as specified only covers the latter.
+// ============================================================================
+
+const prefsRowSchema = z.object({
+  chart_bubbles: z.boolean(),
+  toast: z.boolean(),
+  alert_types: z.array(z.string()),
+});
+
+router.get("/prefs", async (req, res) => {
+  const { data, error } = await supabase
+    .from("kira_kol_notification_prefs")
+    .select("source_id, chart_bubbles, toast, alert_types")
+    .eq("user_id", req.user!.id);
+
+  if (error) {
+    console.error("[kira-api:kol] prefs list failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.json({
+    prefs: (data ?? []).map((p) => ({
+      sourceId: p.source_id,
+      chartBubbles: p.chart_bubbles,
+      toast: p.toast,
+      alertTypes: p.alert_types,
+    })),
+  });
+});
+
+router.post("/prefs/:sourceId", async (req, res) => {
+  const parsed = prefsRowSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("kira_kol_notification_prefs")
+    .upsert(
+      {
+        user_id: req.user!.id,
+        source_id: req.params.sourceId,
+        chart_bubbles: parsed.data.chart_bubbles,
+        toast: parsed.data.toast,
+        alert_types: parsed.data.alert_types,
+      },
+      { onConflict: "user_id,source_id" },
+    )
+    .select("source_id, chart_bubbles, toast, alert_types")
+    .single();
+
+  if (error) {
+    if (error.code === "23503") {
+      // FK violation -- sourceId isn't a real kira_kol_sources row (e.g. a personal source id).
+      res.status(400).json({ error: "Not a valid curated KOL source" });
+      return;
+    }
+    console.error("[kira-api:kol] prefs upsert failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.json({
+    pref: {
+      sourceId: data.source_id,
+      chartBubbles: data.chart_bubbles,
+      toast: data.toast,
+      alertTypes: data.alert_types,
+    },
+  });
+});
+
 export default router;

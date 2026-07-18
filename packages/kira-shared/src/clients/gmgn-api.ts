@@ -42,6 +42,12 @@ const traderSchema = z.object({
   realized_profit: z.union([z.string(), z.number()]).nullable().optional(),
   unrealized_profit: z.union([z.string(), z.number()]).nullable().optional(),
   tags: z.array(z.string()).optional(),
+  // Identity fields are flat on the holder/trader object for this endpoint (`token holders` /
+  // `token traders`), NOT nested under a maker_info wrapper -- that wrapper shape only exists on
+  // the separate `track kol` trade-record endpoint (see GmgnTradeRecord below). Verified live
+  // against a real token's holders response.
+  name: z.string().nullable().optional(),
+  twitter_username: z.string().nullable().optional(),
 });
 
 const tradersListSchema = z.object({ list: z.array(traderSchema) });
@@ -51,6 +57,8 @@ export interface GmgnTrader {
   realizedProfit: number | null;
   unrealizedProfit: number | null;
   tags: string[];
+  name: string | null;
+  twitterUsername: string | null;
 }
 
 function toNumber(v: string | number | null | undefined): number | null {
@@ -71,6 +79,8 @@ function mapTrader(raw: z.infer<typeof traderSchema>): GmgnTrader | null {
     realizedProfit: toNumber(raw.realized_profit),
     unrealizedProfit: toNumber(raw.unrealized_profit),
     tags: raw.tags ?? [],
+    name: raw.name ?? null,
+    twitterUsername: raw.twitter_username ?? null,
   };
 }
 

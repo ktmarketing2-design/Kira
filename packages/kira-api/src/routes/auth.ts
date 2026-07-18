@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { supabase } from "../lib/supabase.js";
@@ -23,7 +24,7 @@ router.post("/telegram-link", async (req, res) => {
 
   const { data: linkCode, error: codeError } = await supabase
     .from("kira_link_codes")
-    .select("code, user_id, expires_at, used")
+    .select("code, user_id, expires_at, used, telegram_user_id_pending, telegram_username_pending")
     .eq("code", code)
     .maybeSingle();
 
@@ -42,6 +43,43 @@ router.post("/telegram-link", async (req, res) => {
   }
   if (new Date(linkCode.expires_at).getTime() < Date.now()) {
     res.status(410).json({ error: "Link code expired" });
+    return;
+  }
+
+  // Email-initiated flow (Sprint 10 Part 4 bot "/link {email}"): the code carries a pending
+  // Telegram identity directly rather than a shadow user_id to swap from -- linkCode.user_id here
+  // is the email account itself (set once the magic-link email was actually clicked and this
+  // route is called while logged in as that account), so this is a direct assign, not a swap.
+  if (linkCode.telegram_user_id_pending != null) {
+    const { data: conflictingProfile } = await supabase
+      .from("kira_profiles")
+      .select("id")
+      .eq("telegram_user_id", linkCode.telegram_user_id_pending)
+      .maybeSingle();
+
+    if (conflictingProfile && conflictingProfile.id !== req.user!.id) {
+      await supabase
+        .from("kira_profiles")
+        .update({ telegram_user_id: null, telegram_username: null })
+        .eq("id", conflictingProfile.id);
+    }
+
+    const { error: assignPendingError } = await supabase
+      .from("kira_profiles")
+      .update({
+        telegram_user_id: linkCode.telegram_user_id_pending,
+        telegram_username: linkCode.telegram_username_pending,
+      })
+      .eq("id", req.user!.id);
+
+    if (assignPendingError) {
+      console.error("[kira-api:auth] pending telegram assign failed:", assignPendingError.message);
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    await supabase.from("kira_link_codes").update({ used: true }).eq("code", code);
+    res.json({ linked: true });
     return;
   }
 
@@ -100,6 +138,40 @@ router.post("/telegram-link", async (req, res) => {
   await supabase.from("kira_link_codes").update({ used: true }).eq("code", code);
 
   res.json({ linked: true });
+});
+
+
+const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I ambiguity, matches telegram.ts
+
+function generateLinkCode(): string {
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += LINK_CODE_ALPHABET[crypto.randomInt(LINK_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+/**
+ * Sprint 10 Part 4: "Link Telegram Account" button in Settings. Generates a code tied to the
+ * currently-logged-in web user, which the bot's /link {code} command (routes/telegram.ts)
+ * consumes to attach that Telegram identity directly to this same profile -- no shadow-account
+ * swap needed since, unlike the bot-/start-initiated flow, this user already has a real profile.
+ */
+router.post("/telegram-link-code", async (req, res) => {
+  const code = generateLinkCode();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+  const { error } = await supabase
+    .from("kira_link_codes")
+    .insert({ code, user_id: req.user!.id, expires_at: expiresAt });
+
+  if (error) {
+    console.error("[kira-api:auth] telegram-link-code insert failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.status(201).json({ code, expiresAt });
 });
 
 export default router;

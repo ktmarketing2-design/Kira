@@ -15,6 +15,7 @@ interface Trade {
   tokenAmount: number;
   usdValue: number;
   timestamp: number;
+  signature: string;
 }
 
 /**
@@ -42,9 +43,9 @@ async function deriveTrades(address: string, sinceTs: number, solPriceUsd: numbe
       if (!transfer.mint || transfer.mint === SOL_MINT || !transfer.tokenAmount) continue;
 
       if (transfer.toUserAccount === address) {
-        trades.push({ tokenAddress: transfer.mint, side: "buy", tokenAmount: transfer.tokenAmount, usdValue, timestamp: tx.timestamp });
+        trades.push({ tokenAddress: transfer.mint, side: "buy", tokenAmount: transfer.tokenAmount, usdValue, timestamp: tx.timestamp, signature: tx.signature });
       } else if (transfer.fromUserAccount === address) {
-        trades.push({ tokenAddress: transfer.mint, side: "sell", tokenAmount: transfer.tokenAmount, usdValue, timestamp: tx.timestamp });
+        trades.push({ tokenAddress: transfer.mint, side: "sell", tokenAmount: transfer.tokenAmount, usdValue, timestamp: tx.timestamp, signature: tx.signature });
       }
     }
   }
@@ -208,6 +209,31 @@ async function processDigest(): Promise<void> {
           },
           { onConflict: "user_id,wallet_address,date" },
         );
+
+        // Sprint 10 Bug 6: individual trades alongside the daily snapshot, so the PnL History
+        // tab can show real per-trade rows instead of one row per day. token_symbol stays null
+        // here -- resolving it would mean a lookup per trade, and every consumer of this table
+        // already treats a null symbol as "unknown," same honest-null pattern used elsewhere
+        // (Dashboard, PnL stat grid). Insert (not upsert) since signature is globally unique;
+        // errors are swallowed per-trade so one duplicate/conflict doesn't drop the rest of the
+        // batch or fail the whole wallet's processing.
+        for (const trade of trades) {
+          const { error: tradeError } = await supabase.from("kira_pnl_trades").insert({
+            user_id: userId,
+            wallet_address: wallet.address,
+            token_address: trade.tokenAddress,
+            token_symbol: null,
+            side: trade.side,
+            token_amount: trade.tokenAmount,
+            usd_value: trade.usdValue,
+            price_at_trade: trade.tokenAmount > 0 ? trade.usdValue / trade.tokenAmount : null,
+            signature: trade.signature,
+            traded_at: new Date(trade.timestamp * 1000).toISOString(),
+          });
+          if (tradeError && tradeError.code !== "23505") {
+            console.error("[kira-workers:pnl-digest] trade insert failed:", trade.signature, tradeError.message);
+          }
+        }
 
         digestSections.push(formatDigest(wallet.label || `${wallet.address.slice(0, 4)}...`, pnl, null));
       } catch (err) {

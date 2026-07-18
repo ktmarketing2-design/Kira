@@ -97,4 +97,51 @@ router.get("/snapshots", async (req, res) => {
   res.json({ snapshots: data ?? [] });
 });
 
+/** Sprint 10 Bug 6: individual trades from kira_pnl_trades (written by pnlDigestWorker
+ * alongside the daily snapshot), replacing the History tab's previous daily-snapshot-only view. */
+router.get("/trades", async (req, res) => {
+  const wallet = typeof req.query.wallet === "string" ? req.query.wallet : undefined;
+  const dateFrom = typeof req.query.from === "string" ? req.query.from : undefined;
+  const dateTo = typeof req.query.to === "string" ? req.query.to : undefined;
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+
+  let query = supabase
+    .from("kira_pnl_trades")
+    .select("*")
+    .eq("user_id", req.user!.id)
+    .order("traded_at", { ascending: false })
+    .limit(limit);
+
+  if (wallet) query = query.eq("wallet_address", wallet);
+  if (dateFrom) query = query.gte("traded_at", dateFrom);
+  if (dateTo) query = query.lte("traded_at", dateTo);
+  if (cursor) query = query.lt("traded_at", cursor);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("[kira-api:pnl] trades load failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  const trades = data ?? [];
+  const nextCursor = trades.length === limit ? trades[trades.length - 1].traded_at : null;
+
+  res.json({
+    trades: trades.map((t) => ({
+      id: t.id,
+      walletAddress: t.wallet_address,
+      tokenAddress: t.token_address,
+      tokenSymbol: t.token_symbol,
+      side: t.side,
+      tokenAmount: t.token_amount,
+      usdValue: t.usd_value,
+      priceAtTrade: t.price_at_trade,
+      tradedAt: t.traded_at,
+    })),
+    nextCursor,
+  });
+});
+
 export default router;

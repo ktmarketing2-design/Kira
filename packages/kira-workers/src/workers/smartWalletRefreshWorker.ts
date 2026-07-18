@@ -45,12 +45,17 @@ async function loadMostCalledTokens(limit: number): Promise<string[]> {
     .map(([tokenAddress]) => tokenAddress);
 }
 
-// Every wallet reaching here came from the token holders --tag smart_degen query, which is the
-// selection filter, not something guaranteed to also appear in the wallet's own tags array
-// (verified live: most did not carry app_smart_money there despite being smart_degen matches).
-// Label reflects how the wallet was actually sourced, not a re-check of its self-reported tags.
-function labelFor(rank: number): string {
-  return `GMGN Smart Money #${rank}`;
+// Priority order per Sprint 10: real identity first (twitter handle, then display name), then
+// tag-derived role, then a plain numbered fallback. twitterUsername/name come flat off the GMGN
+// holder record (verified live against a real token's `token holders` response) -- NOT nested
+// under a maker_info object, which is how an earlier spec draft assumed this endpoint's shape;
+// that maker_info wrapper only exists on the separate `track kol` trade-record endpoint.
+function labelFor(rank: number, identity: { name: string | null; twitterUsername: string | null; tags: string[] }): string {
+  if (identity.twitterUsername) return `@${identity.twitterUsername}`;
+  if (identity.name) return identity.name;
+  if (identity.tags.includes("kol")) return `KOL Trader #${rank}`;
+  if (identity.tags.includes("whale")) return `Whale #${rank}`;
+  return `Smart Trader #${rank}`;
 }
 
 async function processSmartWalletRefresh(): Promise<void> {
@@ -60,17 +65,21 @@ async function processSmartWalletRefresh(): Promise<void> {
     return;
   }
 
-  const walletTags = new Map<string, string[]>();
+  const walletIdentity = new Map<string, { name: string | null; twitterUsername: string | null; tags: string[] }>();
   for (const tokenAddress of tokens) {
     const holders = await gmgnApi.getSmartMoneyHolders(tokenAddress, HOLDERS_PER_TOKEN);
     for (const holder of holders) {
-      if (!walletTags.has(holder.walletAddress)) {
-        walletTags.set(holder.walletAddress, holder.tags);
+      if (!walletIdentity.has(holder.walletAddress)) {
+        walletIdentity.set(holder.walletAddress, {
+          name: holder.name,
+          twitterUsername: holder.twitterUsername,
+          tags: holder.tags,
+        });
       }
     }
   }
 
-  if (walletTags.size === 0) {
+  if (walletIdentity.size === 0) {
     console.error("[kira-workers:smart-wallet-refresh] GMGN returned no smart-money holders across sampled tokens, skipping this run");
     return;
   }
@@ -78,7 +87,7 @@ async function processSmartWalletRefresh(): Promise<void> {
   const { data: existing } = await supabase.from("kira_smart_wallets").select("address");
   const existingAddresses = new Set((existing ?? []).map((r) => r.address));
 
-  const walletsToScore = Array.from(walletTags.keys()).slice(0, MAX_WALLETS_SCORED);
+  const walletsToScore = Array.from(walletIdentity.keys()).slice(0, MAX_WALLETS_SCORED);
   const rows: Array<{
     address: string;
     label: string;
@@ -86,19 +95,21 @@ async function processSmartWalletRefresh(): Promise<void> {
     win_rate_30d: number | null;
     last_computed_at: string;
     is_verified: boolean;
+    tags: string[];
   }> = [];
 
   let rank = 1;
   for (const address of walletsToScore) {
-    const tags = walletTags.get(address) ?? [];
+    const identity = walletIdentity.get(address) ?? { name: null, twitterUsername: null, tags: [] };
     const pnl = await gmgnApi.getWalletPnl(address, "30d");
     rows.push({
       address,
-      label: labelFor(rank),
-      category: categorize(tags),
+      label: labelFor(rank, identity),
+      category: categorize(identity.tags),
       win_rate_30d: pnl?.winRate ?? null,
       last_computed_at: new Date().toISOString(),
       is_verified: true,
+      tags: identity.tags,
     });
     rank++;
   }

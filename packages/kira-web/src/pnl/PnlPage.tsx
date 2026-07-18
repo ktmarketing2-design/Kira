@@ -77,6 +77,96 @@ function CumulativePnlChart({ snapshots }: { snapshots: PnlSnapshot[] }) {
   );
 }
 
+interface PnlTrade {
+  id: string;
+  walletAddress: string;
+  tokenAddress: string;
+  tokenSymbol: string | null;
+  side: "buy" | "sell";
+  tokenAmount: number | null;
+  usdValue: number | null;
+  priceAtTrade: number | null;
+  tradedAt: string;
+}
+
+/** Sprint 10 Bug 6: real per-trade rows from kira_pnl_trades (written by pnlDigestWorker),
+ * replacing the previous daily-kira_pnl_snapshots-only History view. */
+function TradeHistory({ walletFilter }: { walletFilter: string }) {
+  const [trades, setTrades] = useState<PnlTrade[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  function load(cursor?: string) {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (walletFilter) params.set("wallet", walletFilter);
+    if (cursor) params.set("cursor", cursor);
+    apiRequest<{ trades: PnlTrade[]; nextCursor: string | null }>("GET", `/pnl/trades?${params.toString()}`)
+      .then((res) => {
+        setTrades((prev) => (cursor ? [...prev, ...res.trades] : res.trades));
+        setNextCursor(res.nextCursor);
+      })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => load(), [walletFilter]);
+
+  return (
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-tt-fg-faint border-b border-tt-border">
+            <th className="px-4 py-3 font-normal">Time</th>
+            <th className="px-4 py-3 font-normal">Wallet</th>
+            <th className="px-4 py-3 font-normal">Token</th>
+            <th className="px-4 py-3 font-normal">Side</th>
+            <th className="px-4 py-3 font-normal">Amount</th>
+            <th className="px-4 py-3 font-normal">Price</th>
+            <th className="px-4 py-3 font-normal">USD Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trades.map((t) => (
+            <tr key={t.id} className="border-b border-tt-border last:border-0">
+              <td className="px-4 py-3 text-tt-fg-faint text-xs">{new Date(t.tradedAt).toLocaleString()}</td>
+              <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">{truncate(t.walletAddress)}</td>
+              <td className="px-4 py-3 font-body text-xs text-tt-fg">
+                {t.tokenSymbol ?? truncate(t.tokenAddress)}
+              </td>
+              <td className={`px-4 py-3 text-xs ${t.side === "buy" ? "text-tt-green" : "text-tt-red"}`}>
+                {t.side === "buy" ? "Buy" : "Sell"}
+              </td>
+              <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">
+                {t.tokenAmount != null ? t.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+              </td>
+              <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">
+                {t.priceAtTrade != null ? `$${t.priceAtTrade.toPrecision(4)}` : "—"}
+              </td>
+              <td className="px-4 py-3 font-body text-xs text-tt-fg">{fmtUsd(t.usdValue)}</td>
+            </tr>
+          ))}
+          {!loading && trades.length === 0 && (
+            <tr>
+              <td colSpan={7} className="px-4 py-8 text-center text-tt-fg-dim text-sm">
+                No trades recorded yet, check back after tomorrow's digest.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {nextCursor && (
+        <button
+          onClick={() => load(nextCursor)}
+          disabled={loading}
+          className="w-full py-2.5 text-xs text-tt-fg-dim hover:text-tt-fg border-t border-tt-border disabled:opacity-50"
+        >
+          {loading ? "Loading..." : "Load more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function PnlPage() {
   const { me } = useAppData();
   const [tab, setTab] = useState<"overview" | "history" | "wallets">("overview");
@@ -247,49 +337,7 @@ export default function PnlPage() {
         </div>
       )}
 
-      {tab === "history" && (
-        <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-tt-fg-faint border-b border-tt-border">
-                <th className="px-4 py-3 font-normal">Date</th>
-                <th className="px-4 py-3 font-normal">Wallet</th>
-                <th className="px-4 py-3 font-normal">Realized</th>
-                <th className="px-4 py-3 font-normal">Unrealized</th>
-                <th className="px-4 py-3 font-normal">Trades</th>
-                <th className="px-4 py-3 font-normal">Best</th>
-                <th className="px-4 py-3 font-normal">Worst</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr key={s.id} className="border-b border-tt-border last:border-0">
-                  <td className="px-4 py-3 text-tt-fg-faint text-xs">{s.date}</td>
-                  <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">{truncate(s.wallet_address)}</td>
-                  <td className={`px-4 py-3 font-body text-xs ${pctClass(s.realized_pnl_usd)}`}>{fmtUsd(s.realized_pnl_usd)}</td>
-                  <td className={`px-4 py-3 font-body text-xs ${pctClass(s.unrealized_pnl_usd)}`}>{fmtUsd(s.unrealized_pnl_usd)}</td>
-                  <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">
-                    {s.winning_trades ?? 0}/{s.total_trades ?? 0}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-tt-green">
-                    {s.top_gainer_symbol ? `${s.top_gainer_symbol.slice(0, 4)}... +${(s.top_gainer_pct ?? 0).toFixed(0)}%` : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-tt-red">
-                    {s.top_loser_symbol ? `${s.top_loser_symbol.slice(0, 4)}... ${(s.top_loser_pct ?? 0).toFixed(0)}%` : "—"}
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-tt-fg-dim text-sm">
-                    No PnL history yet, check back after tomorrow's digest.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {tab === "history" && <TradeHistory walletFilter={walletFilter} />}
 
       {tab === "wallets" && (
         <div>

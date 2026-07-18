@@ -31,7 +31,14 @@ interface SmartMoneyWallet {
   avg_return_30d: number | null;
   is_verified: boolean;
   added_at: string;
+  tags: string[] | null;
 }
+
+const TAG_BADGES: Record<string, string> = {
+  smart_degen: "🧠",
+  kol: "🎤",
+  whale: "🐳",
+};
 
 const CATEGORY_LABELS: Record<string, string> = {
   whale: "Whale",
@@ -198,12 +205,36 @@ function SmartMoney({ onOpenProfile }: { onOpenProfile: (address: string, label:
   const [category, setCategory] = useState<string>("all");
   const [minWinRate, setMinWinRate] = useState(0);
   const [search, setSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
-  useEffect(() => {
+  function loadWallets() {
+    setLoading(true);
     apiRequest<{ wallets: SmartMoneyWallet[] }>("GET", "/smart-money/wallets")
       .then((res) => setWallets(res.wallets))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(loadWallets, []);
+
+  // Sprint 10 Bug 8: previously had no backend at all (flagged, not silently omitted, in the
+  // Sprint 9 commit). POST /smart-money/refresh enqueues the same kira-smart-wallet-refresh job
+  // the daily schedule runs, Pro/Elite only, rate limited to 1/hr server-side. This just fires it
+  // and re-polls the list a bit later -- the job runs in the background, not synchronously, so
+  // there's no request to await for "done."
+  async function handleRefreshList() {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      await apiRequest("POST", "/smart-money/refresh");
+      setRefreshMsg("Refresh queued -- list will update in a few minutes.");
+      setTimeout(loadWallets, 60_000);
+    } catch (err) {
+      setRefreshMsg(err instanceof ApiError ? err.message : "Couldn't queue a refresh right now.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     return wallets
@@ -248,9 +279,17 @@ function SmartMoney({ onOpenProfile }: { onOpenProfile: (address: string, label:
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search wallet..."
-          className="ml-auto bg-transparent border border-tt-border rounded-md px-3 py-1.5 text-xs text-tt-fg placeholder:text-tt-fg-faint focus:outline-none focus:border-tt-brand max-w-[240px]"
+          className="bg-transparent border border-tt-border rounded-md px-3 py-1.5 text-xs text-tt-fg placeholder:text-tt-fg-faint focus:outline-none focus:border-tt-brand max-w-[240px]"
         />
+        <button
+          onClick={() => void handleRefreshList()}
+          disabled={refreshing}
+          className="ml-auto bg-tt-bg-panel border border-tt-border text-tt-fg rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 hover:border-tt-brand"
+        >
+          {refreshing ? "Queuing..." : "Refresh List"}
+        </button>
       </div>
+      {refreshMsg && <div className="text-xs text-tt-fg-dim mb-3">{refreshMsg}</div>}
 
       {loading ? (
         <div className="text-tt-fg-dim text-sm">Loading...</div>
@@ -278,7 +317,18 @@ function SmartMoney({ onOpenProfile }: { onOpenProfile: (address: string, label:
                   className="border-b border-tt-border last:border-0 cursor-pointer hover:bg-tt-bg-panel"
                   onClick={() => onOpenProfile(w.address, w.label)}
                 >
-                  <td className="px-4 py-3 font-body text-xs text-tt-fg">{w.label ?? truncate(w.address)}</td>
+                  <td className="px-4 py-3 font-body text-xs text-tt-fg">
+                    <div className="flex items-center gap-1.5">
+                      <span>{w.label ?? truncate(w.address)}</span>
+                      {(w.tags ?? [])
+                        .filter((t) => t in TAG_BADGES)
+                        .map((t) => (
+                          <span key={t} title={t}>
+                            {TAG_BADGES[t]}
+                          </span>
+                        ))}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <span className="border border-tt-amber text-tt-amber text-[10px] px-2 py-0.5 rounded-md">
                       {CATEGORY_LABELS[w.category] ?? w.category}

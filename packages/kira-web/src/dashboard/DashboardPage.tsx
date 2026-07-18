@@ -12,6 +12,8 @@ const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 interface WatchlistToken {
   tokenAddress: string;
   tokenSymbol: string | null;
+  priceAtAdd: number | null;
+  currentPriceUsd: number | null;
 }
 
 interface TrendingToken {
@@ -20,25 +22,46 @@ interface TrendingToken {
   priceChange5mPct: number | null;
 }
 
-/** Decorative activity-level preview, same purpose as the mockup's mini-graph: gives the left
- * column something to look at besides an empty alert feed. Not wired to real cluster-event data
- * -- there's no endpoint for "cluster activity over time" today, and inventing one for a sparkline
- * isn't worth a schema/route addition. Static shape, not live. */
+/** Sprint 10 Bug 4: replaces the previous decorative/static sparkline (fixed array of numbers,
+ * documented in code as "not live") with a real hourly bar chart of this user's alerts over the
+ * last 24h, from GET /alerts/sparkline. */
 function ActivitySparkline() {
-  const points = [20, 35, 25, 50, 42, 60, 55, 75, 68, 80, 72, 90, 85, 95];
+  const [hours, setHours] = useState<Array<{ hour: number; count: number }>>([]);
+
+  useEffect(() => {
+    apiRequest<{ hours: Array<{ hour: number; count: number }> }>("GET", "/alerts/sparkline")
+      .then((res) => setHours(res.hours))
+      .catch(() => setHours([]));
+  }, []);
+
   const w = 460;
   const h = 130;
   const pad = 10;
-  const max = Math.max(...points);
-  const x = (i: number) => pad + (i / (points.length - 1)) * (w - pad * 2);
-  const y = (v: number) => h - pad - (v / max) * (h - pad * 2);
-  const d = points.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
-  const fillD = `${d} L${x(points.length - 1)},${h} L${x(0)},${h} Z`;
+  const max = Math.max(1, ...hours.map((h) => h.count));
+  const barW = hours.length ? (w - pad * 2) / hours.length : 0;
+
+  if (hours.every((h) => h.count === 0)) {
+    return <div className="text-xs text-tt-fg-faint py-8 text-center">No cluster activity in the last 24h.</div>;
+  }
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="130" className="block">
-      <path d={fillD} fill="#4AF626" fillOpacity={0.06} />
-      <path d={d} stroke="#4AF626" strokeWidth={1.5} fill="none" />
+      {hours.map((hr, i) => {
+        const barH = (hr.count / max) * (h - pad * 2);
+        return (
+          <rect
+            key={hr.hour}
+            x={pad + i * barW + 1}
+            y={h - pad - barH}
+            width={Math.max(1, barW - 2)}
+            height={barH}
+            fill="#4AF626"
+            fillOpacity={0.6}
+          >
+            <title>{hr.count} alert(s)</title>
+          </rect>
+        );
+      })}
     </svg>
   );
 }
@@ -198,16 +221,28 @@ export default function DashboardPage() {
             {watchlist.length === 0 ? (
               <p className="text-[10px] text-tt-fg-faint">Add tokens from Discover to populate this list.</p>
             ) : (
-              watchlist.map((t) => (
-                <button
-                  key={t.tokenAddress}
-                  onClick={() => navigate(`/token/${t.tokenAddress}`)}
-                  className="w-full flex justify-between py-2 border-t border-tt-border first:border-t-0 text-xs text-left"
-                >
-                  <span className="text-tt-fg">${t.tokenSymbol ?? "?"}</span>
-                  <span className="text-tt-fg-faint">—</span>
-                </button>
-              ))
+              watchlist.map((t) => {
+                // Sprint 10 Bug 3: real % change from price_at_add -> currentPriceUsd, both
+                // fetched server-side (jupiter.getPrice). Dash if either is missing -- price_at_add
+                // is null for anything added before this migration landed, and that's an honest
+                // "unknown," not a fabricated 0%.
+                const pct =
+                  t.priceAtAdd != null && t.currentPriceUsd != null && t.priceAtAdd !== 0
+                    ? ((t.currentPriceUsd - t.priceAtAdd) / t.priceAtAdd) * 100
+                    : null;
+                return (
+                  <button
+                    key={t.tokenAddress}
+                    onClick={() => navigate(`/token/${t.tokenAddress}`)}
+                    className="w-full flex justify-between py-2 border-t border-tt-border first:border-t-0 text-xs text-left"
+                  >
+                    <span className="text-tt-fg">${t.tokenSymbol ?? "?"}</span>
+                    <span className={pct == null ? "text-tt-fg-faint" : pct >= 0 ? "text-tt-green" : "text-tt-red"}>
+                      {pct == null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
 

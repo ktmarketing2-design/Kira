@@ -16,6 +16,7 @@ import webhooksRouter from "./routes/webhooks.js";
 import telegramRouter from "./routes/telegram.js";
 import authRouter from "./routes/auth.js";
 import chartShareRouter from "./routes/chartShare.js";
+import authPublicRouter from "./routes/authPublic.js";
 import meRouter from "./routes/me.js";
 import rosterRouter from "./routes/roster.js";
 import tokenRouter from "./routes/token.js";
@@ -28,6 +29,8 @@ import trendingRouter from "./routes/trending.js";
 import discoverRouter from "./routes/discover.js";
 import watchlistRouter from "./routes/watchlist.js";
 import askRouter from "./routes/ask.js";
+import paymentsWebhooksRouter from "./routes/paymentsWebhooks.js";
+import paymentsRouter from "./routes/payments.js";
 
 const app = express();
 const PORT = Number(process.env.KIRA_API_PORT || 4020);
@@ -51,7 +54,17 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "1mb" }));
+// verify callback stashes the raw request bytes on req.rawBody -- needed for HMAC signature
+// verification on the Lemon Squeezy / NOWPayments webhook routes, since re-serializing the
+// already-parsed JSON body is not guaranteed to byte-match what the provider originally signed.
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req, _res, buf) => {
+      (req as express.Request).rawBody = buf;
+    },
+  }),
+);
 
 app.use((req, _res, next) => {
   console.log(`[kira-api] ${req.method} ${req.path}`);
@@ -65,12 +78,23 @@ app.get("/health", (_req, res) => {
 // No auth: Helius verifies via its own secret header, checked inside the handler.
 app.use("/webhooks", webhooksRouter);
 
+// No Supabase JWT auth: Lemon Squeezy / NOWPayments call these directly, verified via HMAC
+// signature inside each handler instead (see routes/paymentsWebhooks.ts).
+app.use("/payments/webhook", paymentsWebhooksRouter);
+
 // No Supabase JWT auth: there is no user yet on first /start, gated by the internal bot-token
 // header instead (see routes/telegram.ts).
 app.use("/telegram", telegramRouter);
 
 // Public, unauthenticated: chart drawing share links.
 app.use("/chart-drawings", chartShareRouter);
+
+// Public: "Login with Telegram" widget verifies itself via HMAC signature (see
+// routes/authPublic.ts), there is no Supabase session yet to gate on. Mounted at the same
+// "/auth" prefix as the authenticated authRouter below -- Express matches whichever router
+// actually defines the route, so /auth/telegram-login resolves here and everything else
+// (e.g. /auth/telegram-link) falls through to authMiddleware + the authenticated router.
+app.use("/auth", authPublicRouter);
 
 // Everything below requires a Supabase JWT and a resolved tier.
 app.use(authMiddleware);
@@ -89,6 +113,7 @@ app.use("/trending", trendingRouter);
 app.use("/discover", discoverRouter);
 app.use("/watchlist", watchlistRouter);
 app.use("/ask", askRouter);
+app.use("/payments", paymentsRouter);
 
 app.listen(PORT, () => {
   console.log(`[kira-api] listening on port ${PORT}`);

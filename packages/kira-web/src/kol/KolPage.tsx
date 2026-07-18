@@ -403,8 +403,39 @@ function Leaderboard({
 }) {
   const [prefsById, setPrefsById] = useState<Record<string, RowPrefs>>({});
 
+  // Sprint 10 Bug 5: curated-source prefs now persist server-side (kira_kol_notification_prefs
+  // scopes source_id to kira_kol_sources only, per the migration). Personal-source rows keep the
+  // pre-existing local-only behavior -- there's no FK target for them in this table.
+  useEffect(() => {
+    apiRequest<{ prefs: Array<{ sourceId: string; chartBubbles: boolean; toast: boolean; alertTypes: string[] }> }>(
+      "GET",
+      "/kol/prefs",
+    )
+      .then((res) => {
+        const loaded: Record<string, RowPrefs> = {};
+        for (const p of res.prefs) {
+          loaded[p.sourceId] = {
+            bubbles: p.chartBubbles,
+            toast: p.toast,
+            alertTypes: new Set(p.alertTypes),
+            sound: "Silent",
+          };
+        }
+        setPrefsById((prev) => ({ ...loaded, ...prev }));
+      })
+      .catch(() => {});
+  }, []);
+
   function prefsFor(id: string): RowPrefs {
     return prefsById[id] ?? defaultPrefs();
+  }
+
+  function persistPrefs(sourceId: string, prefs: RowPrefs) {
+    void apiRequest("POST", `/kol/prefs/${sourceId}`, {
+      chart_bubbles: prefs.bubbles,
+      toast: prefs.toast,
+      alert_types: Array.from(prefs.alertTypes),
+    }).catch(() => {});
   }
 
   const personalAsStats: KolSourceStats[] = personalSources.map((s) => ({
@@ -420,7 +451,7 @@ function Leaderboard({
     lastCallAt: s.lastCallAt,
   }));
 
-  function renderTable(rows: KolSourceStats[]) {
+  function renderTable(rows: KolSourceStats[], persist: boolean) {
     return (
       <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
         <table className="w-full text-sm">
@@ -444,7 +475,10 @@ function Leaderboard({
                 key={s.id}
                 source={s}
                 prefs={prefsFor(s.id)}
-                onChange={(p) => setPrefsById((prev) => ({ ...prev, [s.id]: p }))}
+                onChange={(p) => {
+                  setPrefsById((prev) => ({ ...prev, [s.id]: p }));
+                  if (persist) persistPrefs(s.id, p);
+                }}
               />
             ))}
           </tbody>
@@ -460,13 +494,13 @@ function Leaderboard({
           No personal sources yet. Add channels from the My Sources tab.
         </div>
       ) : (
-        renderTable(personalAsStats)
+        renderTable(personalAsStats, false)
       )}
 
       {includeKira && (
         <div>
           <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2">Kira Tracked Channels</div>
-          {renderTable(curatedSources)}
+          {renderTable(curatedSources, true)}
         </div>
       )}
     </div>

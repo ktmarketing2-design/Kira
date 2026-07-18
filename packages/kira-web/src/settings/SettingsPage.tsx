@@ -32,6 +32,18 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [soundsOn, setSoundsOn] = useState(alertSoundsEnabled());
+  const [linkCode, setLinkCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [linkCodeLoading, setLinkCodeLoading] = useState(false);
+
+  async function handleGenerateLinkCode() {
+    setLinkCodeLoading(true);
+    try {
+      const res = await apiRequest<{ code: string; expiresAt: string }>("POST", "/auth/telegram-link-code");
+      setLinkCode(res);
+    } finally {
+      setLinkCodeLoading(false);
+    }
+  }
 
   async function saveSettings() {
     setSaving(true);
@@ -77,17 +89,37 @@ export default function SettingsPage() {
           <p className="text-sm text-tt-green">
             Connected {me.profile.telegram_username ? `as @${me.profile.telegram_username}` : ""}
           </p>
+        ) : linkCode ? (
+          <div className="space-y-2">
+            <p className="text-sm text-tt-fg-dim">
+              Send this to{" "}
+              <a
+                href="https://t.me/KiraByCeronixBot"
+                target="_blank"
+                rel="noreferrer"
+                className="text-tt-brand hover:underline"
+              >
+                @KiraByCeronixBot
+              </a>
+              :
+            </p>
+            <div className="bg-tt-bg-panel border border-tt-border rounded-md px-3 py-2 font-data text-sm text-tt-fg">
+              /link {linkCode.code}
+            </div>
+            <p className="text-xs text-tt-fg-faint">
+              Expires {new Date(linkCode.expiresAt).toLocaleTimeString()}.
+            </p>
+          </div>
         ) : (
           <>
             <p className="text-sm text-tt-fg-dim mb-2">Not connected.</p>
-            <a
-              href="https://t.me/KiraByCeronixBot"
-              target="_blank"
-              rel="noreferrer"
-              className="text-tt-brand text-sm hover:underline"
+            <button
+              onClick={() => void handleGenerateLinkCode()}
+              disabled={linkCodeLoading}
+              className="text-xs bg-tt-bg-panel border border-tt-border text-tt-fg rounded-md px-3 py-1.5 hover:border-tt-brand disabled:opacity-50"
             >
-              Message @KiraByCeronixBot to connect
-            </a>
+              {linkCodeLoading ? "Generating..." : "Link Telegram Account"}
+            </button>
           </>
         )}
       </Section>

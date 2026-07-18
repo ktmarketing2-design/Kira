@@ -66,3 +66,47 @@ export async function telegramStart(
   }
   return json;
 }
+
+/** Sprint 10 Part 4: bot /link {code} -- consumes a code the web Settings page generated. */
+export async function telegramLinkCode(
+  code: string,
+  telegramUserId: number,
+  telegramUsername?: string,
+): Promise<{ linked: boolean }> {
+  const res = await fetch(`${BASE_URL}/telegram/link`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-kira-bot-token": BOT_TOKEN as string,
+    },
+    body: JSON.stringify({ code, telegramUserId, telegramUsername }),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new ApiError(res.status, json);
+  }
+  return json;
+}
+
+/** Sprint 10 Part 4: bot /link {email} -- sends a real verification email to an existing account. */
+export async function telegramLinkEmail(
+  email: string,
+  telegramUserId: number,
+  telegramUsername?: string,
+): Promise<{ sent: boolean }> {
+  const res = await fetch(`${BASE_URL}/telegram/link-email`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-kira-bot-token": BOT_TOKEN as string,
+    },
+    body: JSON.stringify({ email, telegramUserId, telegramUsername }),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new ApiError(res.status, json);
+  }
+  return json;
+}

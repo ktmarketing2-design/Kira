@@ -8,7 +8,7 @@
 
 import { Bot, InlineKeyboard, GrammyError, HttpError, type Context } from "grammy";
 import { Redis } from "ioredis";
-import { apiRequest, telegramStart, ApiError } from "./lib/api.js";
+import { apiRequest, telegramStart, telegramLinkCode, telegramLinkEmail, ApiError } from "./lib/api.js";
 import { escapeMarkdownV2, formatDdCard, truncateAddress } from "./lib/format.js";
 import { registerFilterCommands } from "./filterBuilder.js";
 import { getBuyBots } from "./config/buyBots.js";
@@ -543,6 +543,59 @@ bot.command("kol", async (ctx) => {
 
 registerFilterCommands(bot, redis);
 
+const LINK_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Sprint 10 Part 4: /link handles two directions with one command, disambiguated by argument
+ * shape -- a 6-char code (web Settings "Link Telegram Account" button) or an email address
+ * (linking to an existing web account from Telegram).
+ */
+bot.command("link", async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const arg = ctx.match?.toString().trim();
+  if (!arg) {
+    await ctx.reply(
+      "Usage:\n" +
+        "/link CODE -- after clicking \"Link Telegram Account\" in Settings\n" +
+        "/link you@email.com -- to link this Telegram account to an existing Kira account",
+    );
+    return;
+  }
+
+  if (LINK_CODE_RE.test(arg)) {
+    try {
+      await telegramLinkCode(arg.toUpperCase(), userId, ctx.from?.username);
+      await ctx.reply("✅ Telegram account linked.");
+    } catch (err) {
+      const message =
+        err instanceof ApiError && err.body && typeof err.body === "object" && "error" in err.body
+          ? String((err.body as { error: unknown }).error)
+          : "Couldn't link with that code.";
+      await ctx.reply(`❌ ${message}`);
+    }
+    return;
+  }
+
+  if (EMAIL_RE.test(arg)) {
+    try {
+      await telegramLinkEmail(arg, userId, ctx.from?.username);
+      await ctx.reply(`📧 Check ${arg} for a verification link to confirm the connection.`);
+    } catch (err) {
+      const message =
+        err instanceof ApiError && err.body && typeof err.body === "object" && "error" in err.body
+          ? String((err.body as { error: unknown }).error)
+          : "Couldn't start linking with that email.";
+      await ctx.reply(`❌ ${message}`);
+    }
+    return;
+  }
+
+  await ctx.reply("That doesn't look like a link code or an email address.");
+});
+
 bot.command("upgrade", async (ctx) => {
   await ctx.reply(
     "Scout (free): 5 wallets, 10 Deep Dives/day, threshold locked to 3.\n" +
@@ -585,6 +638,7 @@ await bot.api.setMyCommands([
   { command: "watchlist", description: "Your saved tokens: /watchlist [add|remove] [address]" },
   { command: "ask", description: "Ask about a token: /ask [address] [question]" },
   { command: "upgrade", description: "View plans and upgrade" },
+  { command: "link", description: "Link Telegram to your Kira account: /link CODE or /link email" },
 ]);
 
 await bot.api.setMyDescription(

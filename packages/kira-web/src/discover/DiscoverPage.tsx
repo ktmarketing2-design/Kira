@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api.js";
 import BuyTokenModal from "../token/BuyTokenModal.js";
@@ -277,6 +277,9 @@ export default function DiscoverPage() {
   const ranked = useMemo(() => [...filtered].sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0)), [filtered]);
 
   const [bubbles, setBubbles] = useState<FloatingBubble[]>([]);
+  const [hoveredAddress, setHoveredAddress] = useState<string | null>(null);
+  const hoveredAddressRef = useRef<string | null>(null);
+  hoveredAddressRef.current = hoveredAddress;
 
   // Sync incoming tokens with current bubbles state to preserve position/momentum
   useEffect(() => {
@@ -310,6 +313,7 @@ export default function DiscoverPage() {
     function update() {
       setBubbles((prev) =>
         prev.map((b) => {
+          if (b.address === hoveredAddressRef.current) return b; // paused while hovered
           let nextX = b.x + b.vx;
           let nextY = b.y + b.vy;
           let nextVx = b.vx;
@@ -347,31 +351,37 @@ export default function DiscoverPage() {
     return () => cancelAnimationFrame(animId);
   }, []);
 
-  const links = useMemo(() => {
-    const list: Array<{ source: FloatingBubble; target: FloatingBubble; strength: number }> = [];
-    if (bubbles.length < 2) return list;
-    for (let i = 0; i < bubbles.length; i++) {
-      const source = bubbles[i];
-      const nextIdx = (i + 1) % bubbles.length;
-      const target1 = bubbles[nextIdx];
-      list.push({
-        source,
-        target: target1,
-        strength: ((i * 3 + 7) % 5) + 1,
-      });
+  // Real shared-wallet-cluster connections (Sprint 10 Bug 7), replacing the placeholder version
+  // of this feature: Sprint 9 shipped the bubble map with no connecting lines at all rather than
+  // fake ones, after confirming with the user that faking "2+ roster wallets bought both tokens"
+  // data wasn't acceptable. GET /discover/connections now computes this for real from
+  // kira_wallet_events, so lines only appear where there's an actual shared-wallet overlap.
+  const [rawConnections, setRawConnections] = useState<
+    Array<{ tokenA: string; tokenB: string; sharedWalletCount: number; wallets: string[] }>
+  >([]);
 
-      if (bubbles.length > 3) {
-        const farIdx = (i + 3) % bubbles.length;
-        const target2 = bubbles[farIdx];
-        list.push({
-          source,
-          target: target2,
-          strength: ((i * 7 + 11) % 4) + 1,
-        });
-      }
+  useEffect(() => {
+    if (filtered.length < 2) {
+      setRawConnections([]);
+      return;
+    }
+    const addresses = filtered.map((t) => t.address).join(",");
+    apiRequest<{ connections: typeof rawConnections }>("GET", `/discover/connections?addresses=${addresses}`)
+      .then((res) => setRawConnections(res.connections))
+      .catch(() => setRawConnections([]));
+  }, [filtered]);
+
+  const links = useMemo(() => {
+    const bubbleByAddress = new Map(bubbles.map((b) => [b.address, b]));
+    const list: Array<{ source: FloatingBubble; target: FloatingBubble; strength: number }> = [];
+    for (const conn of rawConnections) {
+      const source = bubbleByAddress.get(conn.tokenA);
+      const target = bubbleByAddress.get(conn.tokenB);
+      if (!source || !target) continue;
+      list.push({ source, target, strength: conn.sharedWalletCount });
     }
     return list;
-  }, [bubbles]);
+  }, [bubbles, rawConnections]);
 
   return (
     <div className="grid" style={{ gridTemplateColumns: selected ? "1fr 320px" : "1fr", height: "calc(100vh - 130px)" }}>
@@ -490,7 +500,7 @@ export default function DiscoverPage() {
                       x2={link.target.x}
                       y2={link.target.y}
                       stroke={isConnected ? "#7B7FD4" : "#262624"}
-                      strokeWidth={isConnected ? 1.5 + link.strength * 0.45 : 0.6 + link.strength * 0.45}
+                      strokeWidth={Math.min(isConnected ? 1.5 + link.strength * 0.45 : 0.6 + link.strength * 0.45, 6)}
                       strokeOpacity={isConnected ? 0.95 : selected ? 0.2 : 0.5}
                     />
                   );
@@ -502,6 +512,8 @@ export default function DiscoverPage() {
                     className="cursor-pointer"
                     onClick={() => setSelected(t)}
                     onDoubleClick={() => navigate(`/token/${t.address}`)}
+                    onMouseEnter={() => setHoveredAddress(t.address)}
+                    onMouseLeave={() => setHoveredAddress((cur) => (cur === t.address ? null : cur))}
                   >
                     <circle
                       cx={t.x}

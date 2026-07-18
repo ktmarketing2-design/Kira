@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { gmgnApi } from "@ceronix/kira-shared";
 import { redis } from "../lib/redis.js";
+import { supabase } from "../lib/supabase.js";
 
 const router = Router();
 const CACHE_TTL_SECONDS = 60;
@@ -92,6 +93,80 @@ router.get("/", async (req, res) => {
 
   const payload = { tokens, type, updatedAt: Date.now() };
   await redis.set(cacheKey, JSON.stringify(payload), "EX", CACHE_TTL_SECONDS);
+  res.json(payload);
+});
+
+// ============================================================================
+// Connections (Sprint 10 Bug 7): real shared-wallet-cluster lines for the Discover bubble map.
+// Replaces the placeholder version of this feature (no connecting lines at all, shipped in
+// Sprint 9 with the gap explicitly flagged rather than faked). For each pair of the caller's
+// currently-displayed tokens, looks for wallets that bought both within CONNECTION_WINDOW_HOURS
+// of each other. 2+ shared wallets = a real connection, not a decorative one.
+// ============================================================================
+
+const CONNECTIONS_CACHE_TTL_SECONDS = 120;
+const CONNECTION_WINDOW_HOURS = 48;
+const MIN_SHARED_WALLETS = 2;
+const MAX_SAMPLE_WALLETS_PER_TOKEN = 500;
+
+router.get("/connections", async (req, res) => {
+  const addressesParam = typeof req.query.addresses === "string" ? req.query.addresses : "";
+  const addresses = [...new Set(addressesParam.split(",").map((a) => a.trim()).filter(Boolean))].slice(0, 60);
+
+  if (addresses.length < 2) {
+    res.json({ connections: [] });
+    return;
+  }
+
+  const cacheKey = `discover:connections:${addresses.slice().sort().join(",")}`;
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    res.json(JSON.parse(cached));
+    return;
+  }
+
+  const since = new Date(Date.now() - CONNECTION_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("kira_wallet_events")
+    .select("wallet_address, token_address")
+    .in("token_address", addresses)
+    .eq("side", "buy")
+    .gte("block_time", since)
+    .limit(addresses.length * MAX_SAMPLE_WALLETS_PER_TOKEN);
+
+  if (error) {
+    console.error("[kira-api:discover] connections query failed:", error.message);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  const walletsByToken = new Map<string, Set<string>>();
+  for (const row of data ?? []) {
+    const set = walletsByToken.get(row.token_address) ?? new Set<string>();
+    set.add(row.wallet_address);
+    walletsByToken.set(row.token_address, set);
+  }
+
+  const connections: Array<{ tokenA: string; tokenB: string; sharedWalletCount: number; wallets: string[] }> = [];
+  for (let i = 0; i < addresses.length; i++) {
+    for (let j = i + 1; j < addresses.length; j++) {
+      const walletsA = walletsByToken.get(addresses[i]);
+      const walletsB = walletsByToken.get(addresses[j]);
+      if (!walletsA || !walletsB) continue;
+      const shared = [...walletsA].filter((w) => walletsB.has(w));
+      if (shared.length >= MIN_SHARED_WALLETS) {
+        connections.push({
+          tokenA: addresses[i],
+          tokenB: addresses[j],
+          sharedWalletCount: shared.length,
+          wallets: shared.slice(0, 5),
+        });
+      }
+    }
+  }
+
+  const payload = { connections };
+  await redis.set(cacheKey, JSON.stringify(payload), "EX", CONNECTIONS_CACHE_TTL_SECONDS);
   res.json(payload);
 });
 

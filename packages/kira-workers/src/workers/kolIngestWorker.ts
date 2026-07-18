@@ -1,4 +1,4 @@
-import { TelegramClient } from "telegram";
+import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { NewMessage, type NewMessageEvent } from "telegram/events/index.js";
 import type { Entity } from "telegram/define.js";
@@ -7,6 +7,7 @@ import { redis } from "../lib/redis.js";
 import { supabase } from "../lib/supabase.js";
 import { reserveGeminiBudget, generateText } from "../lib/gemini.js";
 import { kolPriceCheckQueue } from "../lib/queues.js";
+import { telegramApi } from "../lib/telegram.js";
 
 const CLASSIFY_MODEL = "gemini-flash-lite-latest";
 const CLASSIFY_ESTIMATED_TOKENS = 200;
@@ -14,6 +15,15 @@ const BACKFILL_DAYS = 30;
 const BACKFILL_DONE_TTL_SECONDS = 400 * 24 * 60 * 60; // long-lived, backfill is meant to run once ever
 const BACKFILL_PER_CHANNEL_TOKEN_CAP = 10_000;
 const BACKFILL_JUPITER_DELAY_MS = 500;
+
+// Personal (user-added) channels join the operator's own Telegram account via GramJS, which
+// carries real spam/flood risk if left unbounded -- capped globally across all users, not just
+// per-user (the per-user cap in requireUserKolSourceCapacity limits how many a single user can
+// add, but does nothing to stop 50 different users each adding 1). Joins are also staggered
+// (JOIN_STAGGER_MS apart) since bursts of channels.join calls are what actually trips Telegram's
+// flood/spam protection, more so than raw channel count.
+const MAX_TOTAL_PERSONAL_CHANNELS = 50;
+const JOIN_STAGGER_MS = 2000;
 
 // 32-44 chars, base58 alphabet (no 0/O/I/l), same pattern used by the /kol regex pre-filter spec.
 const SOLANA_ADDRESS_RE = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
@@ -31,6 +41,13 @@ interface KolSourceRow {
   display_name: string | null;
 }
 
+interface UserKolSourceRow {
+  id: string;
+  user_id: string;
+  channel_identifier: string;
+  display_name: string | null;
+}
+
 async function loadActiveSources(): Promise<KolSourceRow[]> {
   const { data, error } = await supabase
     .from("kira_kol_sources")
@@ -41,6 +58,44 @@ async function loadActiveSources(): Promise<KolSourceRow[]> {
     return [];
   }
   return data ?? [];
+}
+
+async function loadActiveUserSources(): Promise<UserKolSourceRow[]> {
+  const { data, error } = await supabase
+    .from("kira_user_kol_sources")
+    .select("id, user_id, channel_identifier, display_name")
+    .eq("active", true)
+    .order("added_at", { ascending: true });
+  if (error) {
+    console.error("[kira-workers:kol-ingest] user source load failed:", error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
+/** Deactivates a personal source that failed to resolve/join and tells the user why, via the
+ * same telegramApi.sendMessage + kira_profiles.telegram_user_id path alertDispatchWorker uses. */
+async function deactivateUserSource(source: UserKolSourceRow, reason: string): Promise<void> {
+  await supabase.from("kira_user_kol_sources").update({ active: false }).eq("id", source.id);
+
+  const { data: profile } = await supabase
+    .from("kira_profiles")
+    .select("telegram_user_id")
+    .eq("id", source.user_id)
+    .maybeSingle();
+
+  if (!profile?.telegram_user_id) return;
+  try {
+    await telegramApi.sendMessage(
+      profile.telegram_user_id,
+      `⚠️ Couldn't track @${source.channel_identifier}: ${reason}. It's been removed from your KOL sources — you can re-add it from the My Sources tab on the KOL Tracker page if this was a mistake.`,
+    );
+  } catch (err) {
+    console.error(
+      "[kira-workers:kol-ingest] deactivation notice failed:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
 
 function extractCandidateAddress(text: string): string | null {
@@ -183,6 +238,25 @@ async function runBackfillOnce(client: TelegramClient, source: KolSourceRow, ent
   }
 }
 
+/** Resolves + joins one personal channel. Distinct from the curated-source resolve step above:
+ * curated channels are pre-vetted and the account is presumably already a member (or the channel
+ * is public enough that getEntity alone is sufficient to receive events for it); personal
+ * channels are arbitrary user input, so we explicitly call channels.JoinChannel and treat any
+ * failure (private, invite-only, invalid handle, already-banned, etc.) as reason to deactivate
+ * the source and tell the user, rather than leaving it silently unwatched forever. */
+async function joinUserChannel(client: TelegramClient, source: UserKolSourceRow): Promise<Entity | null> {
+  try {
+    const entity = await client.getEntity(source.channel_identifier);
+    await client.invoke(new Api.channels.JoinChannel({ channel: entity as any }));
+    return entity;
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[kira-workers:kol-ingest] failed to join personal channel ${source.channel_identifier}:`, reason);
+    await deactivateUserSource(source, "the channel is private, invalid, or no longer exists");
+    return null;
+  }
+}
+
 export async function startKolIngest(): Promise<void> {
   const apiId = Number(process.env.TELEGRAM_MTPROTO_API_ID);
   const apiHash = process.env.TELEGRAM_MTPROTO_API_HASH ?? "";
@@ -208,14 +282,16 @@ export async function startKolIngest(): Promise<void> {
   }
 
   const sources = await loadActiveSources();
-  if (sources.length === 0) {
+  const userSources = await loadActiveUserSources();
+
+  if (sources.length === 0 && userSources.length === 0) {
     console.log("[kira-workers:kol-ingest] no active KOL sources configured, not listening");
     return;
   }
 
-  // Resolve each channel to a concrete entity up front rather than filtering on channel_identifier
-  // strings at message time, and log per-channel failures loudly instead of silently listening to
-  // fewer channels than expected.
+  // Resolve each curated channel to a concrete entity up front rather than filtering on
+  // channel_identifier strings at message time, and log per-channel failures loudly instead of
+  // silently listening to fewer channels than expected.
   const sourceIdByEntityId = new Map<string, string>();
   const entityBySourceId = new Map<string, Entity>();
   for (const source of sources) {
@@ -231,23 +307,64 @@ export async function startKolIngest(): Promise<void> {
     }
   }
 
+  // Personal channels: capped globally (curated + personal together) at MAX_TOTAL_PERSONAL_CHANNELS
+  // extra slots, joined oldest-added-first, staggered so a batch of new sign-ups doesn't fire a
+  // burst of channels.join calls against the operator's own Telegram account in the same second.
+  const userSourceIdByEntityId = new Map<string, string>();
+  const remainingSlots = Math.max(0, MAX_TOTAL_PERSONAL_CHANNELS - sources.length);
+  const toJoin = userSources.slice(0, remainingSlots);
+  const skippedForCapacity = userSources.slice(remainingSlots);
+  if (skippedForCapacity.length > 0) {
+    console.log(
+      `[kira-workers:kol-ingest] ${skippedForCapacity.length} personal channel(s) not joined this run (global capacity ${MAX_TOTAL_PERSONAL_CHANNELS} reached), will retry next restart`,
+    );
+  }
+
+  for (let i = 0; i < toJoin.length; i++) {
+    const source = toJoin[i];
+    await new Promise((resolve) => setTimeout(resolve, i === 0 ? 0 : JOIN_STAGGER_MS));
+    const entity = await joinUserChannel(client, source);
+    if (!entity) continue;
+    userSourceIdByEntityId.set(String((entity as { id?: unknown }).id), source.id);
+  }
+
+  const userIdBySourceId = new Map(userSources.map((s) => [s.id, s.user_id]));
+
   client.addEventHandler(async (event: NewMessageEvent) => {
     const message = event.message;
     if (!message?.text) return;
 
     const chatId = String(message.chatId ?? message.peerId);
-    const sourceId = sourceIdByEntityId.get(chatId);
-    if (!sourceId) return; // message from a channel we resolved but are not tracking (or a DM)
+    const curatedSourceId = sourceIdByEntityId.get(chatId);
+    const personalSourceId = userSourceIdByEntityId.get(chatId);
+    if (!curatedSourceId && !personalSourceId) return; // channel we resolved but are not tracking (or a DM)
 
     try {
-      await processMessageText({
-        sourceId,
-        sourceUserId: null,
-        messageId: String(message.id),
-        text: message.text,
-        calledAt: new Date(message.date * 1000),
-        isBackfill: false,
-      });
+      if (curatedSourceId) {
+        await processMessageText({
+          sourceId: curatedSourceId,
+          sourceUserId: null,
+          messageId: String(message.id),
+          text: message.text,
+          calledAt: new Date(message.date * 1000),
+          isBackfill: false,
+        });
+      } else if (personalSourceId) {
+        // source_id stays null for personal calls (kira_kol_calls.source_id references the
+        // curated kira_kol_sources table only), so the dedupe unique constraint is
+        // (source_id, message_id) with source_id null for every personal call — Postgres treats
+        // NULLs as distinct, meaning that constraint alone can't dedupe across personal sources.
+        // Prefixing message_id with the personal source's own id keeps dedupe correct per-channel
+        // without a schema change.
+        await processMessageText({
+          sourceId: null,
+          sourceUserId: userIdBySourceId.get(personalSourceId) ?? null,
+          messageId: `user:${personalSourceId}:${message.id}`,
+          text: message.text,
+          calledAt: new Date(message.date * 1000),
+          isBackfill: false,
+        });
+      }
     } catch (err) {
       console.error(
         "[kira-workers:kol-ingest] message processing failed:",
@@ -256,10 +373,15 @@ export async function startKolIngest(): Promise<void> {
     }
   }, new NewMessage({}));
 
-  console.log(`[kira-workers:kol-ingest] Connected to Telegram, listening on ${entityBySourceId.size} channels`);
+  console.log(
+    `[kira-workers:kol-ingest] Connected to Telegram, listening on ${entityBySourceId.size} curated + ${userSourceIdByEntityId.size} personal channels`,
+  );
 
-  // Staggered by 0-30s per source so all 10 backfills do not burst Jupiter'''s price API at
-  // once (observed live: concurrent unstaggered backfills produced repeated Jupiter 429s).
+  // Staggered by 0-30s per source so all backfills do not burst Jupiter's price API at once
+  // (observed live: concurrent unstaggered backfills produced repeated Jupiter 429s). Personal
+  // channels do not get a 30-day backfill -- backfilling arbitrary user-added channels would
+  // multiply the Gemini/Jupiter load per new sign-up with no capacity control, unlike the fixed
+  // curated list; personal sources start picking up calls from the moment they're added instead.
   for (const source of sources) {
     const entity = entityBySourceId.get(source.id);
     if (!entity) continue;

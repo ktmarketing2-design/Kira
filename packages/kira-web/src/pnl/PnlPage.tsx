@@ -32,13 +32,49 @@ function fmtUsd(v: number | null): string {
 }
 
 function pctClass(v: number | null): string {
-  if (v == null) return "text-kira-text-dim";
-  return v >= 0 ? "text-kira-green" : "text-kira-red";
+  if (v == null) return "text-tt-fg-faint";
+  return v >= 0 ? "text-tt-green" : "text-tt-red";
 }
 
 function truncate(address: string): string {
   if (address.length <= 10) return address;
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+function CumulativePnlChart({ snapshots }: { snapshots: PnlSnapshot[] }) {
+  const byDate = new Map<string, number>();
+  for (const s of snapshots) {
+    byDate.set(s.date, (byDate.get(s.date) ?? 0) + (s.realized_pnl_usd ?? 0));
+  }
+  const dates = [...byDate.keys()].sort();
+  if (dates.length === 0) {
+    return <div className="text-xs text-tt-fg-faint py-8 text-center">No PnL history yet.</div>;
+  }
+
+  let running = 0;
+  const points = dates.map((d) => {
+    running += byDate.get(d) ?? 0;
+    return running;
+  });
+
+  const w = 900;
+  const h = 100;
+  const pad = 6;
+  const min = Math.min(0, ...points);
+  const max = Math.max(0, ...points);
+  const range = max - min || 1;
+  const x = (i: number) => pad + (i / Math.max(1, points.length - 1)) * (w - pad * 2);
+  const y = (v: number) => h - pad - ((v - min) / range) * (h - pad * 2);
+  const d = points.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
+  const zeroY = y(0);
+  const color = points[points.length - 1] >= 0 ? "#4AF626" : "#FF3B3B";
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} className="block">
+      <line x1={0} x2={w} y1={zeroY} y2={zeroY} stroke="#262624" strokeDasharray="3,3" />
+      <path d={d} stroke={color} strokeWidth={1.5} fill="none" />
+    </svg>
+  );
 }
 
 export default function PnlPage() {
@@ -108,19 +144,30 @@ export default function PnlPage() {
       .slice(0, 5);
   }, [filtered]);
 
+  const walletStats = useMemo(() => {
+    return wallets.map((w) => {
+      const rows = snapshots.filter((s) => s.wallet_address === w.address);
+      const realized = rows.reduce((sum, s) => sum + (s.realized_pnl_usd ?? 0), 0);
+      const unrealized = rows.reduce((sum, s) => sum + (s.unrealized_pnl_usd ?? 0), 0);
+      const trades = rows.reduce((sum, s) => sum + (s.total_trades ?? 0), 0);
+      const wins = rows.reduce((sum, s) => sum + (s.winning_trades ?? 0), 0);
+      return { wallet: w, realized, unrealized, trades, winRate: trades > 0 ? wins / trades : null };
+    });
+  }, [wallets, snapshots]);
+
   const tier = me?.tier ?? "scout";
   const limit = TIER_LIMITS[tier] ?? 1;
 
   return (
     <div>
-      <h1 className="font-display text-lg text-kira-text mb-4">PnL</h1>
+      <h1 className="font-display uppercase text-lg text-tt-fg mb-1">PnL</h1>
 
-      <div className="flex gap-1 mb-4">
+      <div className="flex gap-1 mb-4 mt-3">
         {(["overview", "history", "wallets"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`text-xs px-3 py-1.5 rounded border capitalize ${tab === t ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"}`}
+            className={`text-xs px-4 py-2 rounded-md border capitalize ${tab === t ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"}`}
           >
             {t === "wallets" ? "By Wallet" : t}
           </button>
@@ -128,63 +175,83 @@ export default function PnlPage() {
       </div>
 
       {loading ? (
-        <div className="text-kira-text-muted text-sm">Loading...</div>
+        <div className="text-tt-fg-dim text-sm">Loading...</div>
       ) : wallets.length === 0 ? (
-        <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center text-kira-text-muted text-sm mb-4">
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm mb-4">
           No wallets tracked for PnL yet. Add one below to get a daily digest.
         </div>
       ) : null}
 
       {tab === "overview" && wallets.length > 0 && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-kira-surface border border-kira-border rounded-md p-3">
-              <div className="text-xs text-kira-text-dim">Realized PnL</div>
-              <div className={`font-data text-sm ${pctClass(totals.realized)}`}>{fmtUsd(totals.realized)}</div>
+        <div>
+          <div className="bg-tt-bg-raised border border-tt-border rounded-md p-6 mb-5">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-1.5">
+                  Total PnL (Realized + Unrealized)
+                </div>
+                <div className={`font-display text-3xl ${pctClass(totals.realized + totals.unrealized)}`}>
+                  {fmtUsd(totals.realized + totals.unrealized)}
+                </div>
+                <div className="text-[10px] text-tt-fg-faint mt-1">All tracked wallets</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-1.5">Win Rate</div>
+                <div className="font-display text-xl text-tt-fg">
+                  {totals.winRate != null ? `${Math.round(totals.winRate * 100)}%` : "—"}
+                </div>
+              </div>
             </div>
-            <div className="bg-kira-surface border border-kira-border rounded-md p-3">
-              <div className="text-xs text-kira-text-dim">Unrealized PnL</div>
-              <div className={`font-data text-sm ${pctClass(totals.unrealized)}`}>{fmtUsd(totals.unrealized)}</div>
+            <CumulativePnlChart snapshots={filtered} />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-tt-border border border-tt-border rounded-md overflow-hidden mb-5">
+            <div className="bg-tt-bg p-4">
+              <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2">Realized PnL</div>
+              <div className={`font-display text-lg ${pctClass(totals.realized)}`}>{fmtUsd(totals.realized)}</div>
             </div>
-            <div className="bg-kira-surface border border-kira-border rounded-md p-3">
-              <div className="text-xs text-kira-text-dim">Trades</div>
-              <div className="font-data text-sm text-kira-text">{totals.trades}</div>
+            <div className="bg-tt-bg p-4">
+              <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2">Unrealized PnL</div>
+              <div className={`font-display text-lg ${pctClass(totals.unrealized)}`}>{fmtUsd(totals.unrealized)}</div>
             </div>
-            <div className="bg-kira-surface border border-kira-border rounded-md p-3">
-              <div className="text-xs text-kira-text-dim">Win Rate</div>
-              <div className="font-data text-sm text-kira-text">
+            <div className="bg-tt-bg p-4">
+              <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2">Trades</div>
+              <div className="font-display text-lg text-tt-fg">{totals.trades}</div>
+            </div>
+            <div className="bg-tt-bg p-4">
+              <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-2">Win Rate</div>
+              <div className="font-display text-lg text-tt-fg">
                 {totals.winRate != null ? `${Math.round(totals.winRate * 100)}%` : "—"}
               </div>
             </div>
           </div>
 
-          <div className="bg-kira-surface border border-kira-border rounded-md p-4">
-            <h2 className="text-xs uppercase tracking-wide text-kira-text-muted mb-3">Top Performers</h2>
+          <div className="bg-tt-bg-raised border border-tt-border rounded-md p-5">
+            <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-3">Top Performers</div>
             {topPerformers.length === 0 ? (
-              <p className="text-xs text-kira-text-dim">No data yet.</p>
+              <p className="text-xs text-tt-fg-faint">No data yet.</p>
             ) : (
-              <ul className="space-y-1 text-xs">
-                {topPerformers.map((s) => (
-                  <li key={s.id} className="flex justify-between">
-                    <span className="text-kira-text-muted">
-                      {s.top_gainer_symbol?.slice(0, 4)}... on {s.date}
-                    </span>
-                    <span className={pctClass(s.top_gainer_pct)}>
-                      {s.top_gainer_pct != null ? `+${s.top_gainer_pct.toFixed(0)}%` : "—"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              topPerformers.map((s) => (
+                <div key={s.id} className="flex justify-between text-xs py-2 border-t border-tt-border first:border-t-0">
+                  <span className="text-tt-fg">
+                    {s.top_gainer_symbol?.slice(0, 4)}...
+                    <span className="text-tt-fg-faint text-[10px] ml-2">on {s.date}</span>
+                  </span>
+                  <span className={pctClass(s.top_gainer_pct)}>
+                    {s.top_gainer_pct != null ? `+${s.top_gainer_pct.toFixed(0)}%` : "—"}
+                  </span>
+                </div>
+              ))
             )}
           </div>
         </div>
       )}
 
       {tab === "history" && (
-        <div className="bg-kira-surface border border-kira-border rounded-md overflow-x-auto">
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-kira-text-muted border-b border-kira-border">
+              <tr className="text-left text-xs text-tt-fg-faint border-b border-tt-border">
                 <th className="px-4 py-3 font-normal">Date</th>
                 <th className="px-4 py-3 font-normal">Wallet</th>
                 <th className="px-4 py-3 font-normal">Realized</th>
@@ -196,25 +263,25 @@ export default function PnlPage() {
             </thead>
             <tbody>
               {filtered.map((s) => (
-                <tr key={s.id} className="border-b border-kira-border last:border-0">
-                  <td className="px-4 py-3 text-kira-text-dim text-xs">{s.date}</td>
-                  <td className="px-4 py-3 font-data text-xs text-kira-text-muted">{truncate(s.wallet_address)}</td>
-                  <td className={`px-4 py-3 font-data text-xs ${pctClass(s.realized_pnl_usd)}`}>{fmtUsd(s.realized_pnl_usd)}</td>
-                  <td className={`px-4 py-3 font-data text-xs ${pctClass(s.unrealized_pnl_usd)}`}>{fmtUsd(s.unrealized_pnl_usd)}</td>
-                  <td className="px-4 py-3 font-data text-xs text-kira-text-muted">
+                <tr key={s.id} className="border-b border-tt-border last:border-0">
+                  <td className="px-4 py-3 text-tt-fg-faint text-xs">{s.date}</td>
+                  <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">{truncate(s.wallet_address)}</td>
+                  <td className={`px-4 py-3 font-body text-xs ${pctClass(s.realized_pnl_usd)}`}>{fmtUsd(s.realized_pnl_usd)}</td>
+                  <td className={`px-4 py-3 font-body text-xs ${pctClass(s.unrealized_pnl_usd)}`}>{fmtUsd(s.unrealized_pnl_usd)}</td>
+                  <td className="px-4 py-3 font-body text-xs text-tt-fg-dim">
                     {s.winning_trades ?? 0}/{s.total_trades ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-xs text-kira-green">
+                  <td className="px-4 py-3 text-xs text-tt-green">
                     {s.top_gainer_symbol ? `${s.top_gainer_symbol.slice(0, 4)}... +${(s.top_gainer_pct ?? 0).toFixed(0)}%` : "—"}
                   </td>
-                  <td className="px-4 py-3 text-xs text-kira-red">
+                  <td className="px-4 py-3 text-xs text-tt-red">
                     {s.top_loser_symbol ? `${s.top_loser_symbol.slice(0, 4)}... ${(s.top_loser_pct ?? 0).toFixed(0)}%` : "—"}
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-kira-text-muted text-sm">
+                  <td colSpan={7} className="px-4 py-8 text-center text-tt-fg-dim text-sm">
                     No PnL history yet, check back after tomorrow's digest.
                   </td>
                 </tr>
@@ -226,42 +293,59 @@ export default function PnlPage() {
 
       {tab === "wallets" && (
         <div>
-          <div className="bg-kira-surface border border-kira-border rounded-md p-4 mb-4">
+          <div className="bg-tt-bg-raised border border-tt-border rounded-md p-4 mb-5">
             <form onSubmit={handleAddWallet} className="flex flex-col sm:flex-row gap-2">
               <input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Wallet address"
-                className="flex-1 bg-kira-surface-2 border border-kira-border rounded px-3 py-2 text-xs font-data text-kira-text placeholder:text-kira-text-dim focus:outline-none focus:border-kira-accent"
+                className="flex-1 bg-transparent border border-tt-border rounded-md px-3 py-2.5 text-xs font-body text-tt-fg placeholder:text-tt-fg-faint focus:outline-none focus:border-tt-brand"
               />
               <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="Label (optional)"
-                className="sm:w-40 bg-kira-surface-2 border border-kira-border rounded px-3 py-2 text-xs text-kira-text placeholder:text-kira-text-dim focus:outline-none focus:border-kira-accent"
+                className="sm:w-40 bg-transparent border border-tt-border rounded-md px-3 py-2.5 text-xs text-tt-fg placeholder:text-tt-fg-faint focus:outline-none focus:border-tt-brand"
               />
-              <button type="submit" className="bg-kira-accent text-kira-bg rounded px-4 py-2 text-sm font-medium">
+              <button
+                type="submit"
+                className="border border-tt-brand text-tt-brand font-body text-xs uppercase tracking-wide px-4 py-2.5 rounded-md hover:bg-tt-brand hover:text-tt-bg transition-colors"
+              >
                 Add
               </button>
             </form>
-            {formError && <p className="text-xs text-kira-red mt-2">{formError}</p>}
-            <p className="text-xs text-kira-text-dim mt-2">
+            {formError && <p className="text-xs text-tt-red mt-2">{formError}</p>}
+            <p className="text-[10px] text-tt-fg-faint mt-2">
               {wallets.length} of {limit === Infinity ? "unlimited" : limit} wallets used ({tier})
             </p>
           </div>
 
-          <div className="space-y-2">
-            {wallets.map((w) => (
-              <div key={w.id} className="bg-kira-surface border border-kira-border rounded-md p-3 flex items-center justify-between">
-                <div>
-                  <span className="text-sm text-kira-text">{w.label || truncate(w.address)}</span>
-                  <span className="font-data text-xs text-kira-text-dim ml-2">{truncate(w.address)}</span>
+          <div className="space-y-3">
+            {walletStats.map(({ wallet: w, realized, unrealized, trades, winRate }) => (
+              <div key={w.id} className="bg-tt-bg-raised border border-tt-border rounded-md p-5">
+                <div className="flex justify-between mb-3">
+                  <span className="text-tt-fg text-sm">{w.label || truncate(w.address)}</span>
+                  <span className="text-tt-fg-faint text-[10px]">{w.label ? truncate(w.address) : "Tracked wallet"}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setWalletFilter(w.address)} className="text-xs text-kira-accent hover:underline">
+                <div className="flex gap-7 mb-3">
+                  <div>
+                    <div className="text-[10px] text-tt-fg-faint mb-1">PnL</div>
+                    <div className={`text-sm ${pctClass(realized + unrealized)}`}>{fmtUsd(realized + unrealized)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-tt-fg-faint mb-1">Trades</div>
+                    <div className="text-sm text-tt-fg">{trades}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-tt-fg-faint mb-1">Win Rate</div>
+                    <div className="text-sm text-tt-fg">{winRate != null ? `${Math.round(winRate * 100)}%` : "—"}</div>
+                  </div>
+                </div>
+                <div className="flex gap-4 text-xs">
+                  <button onClick={() => setWalletFilter(w.address)} className="text-tt-brand hover:underline">
                     View history
                   </button>
-                  <button onClick={() => void handleRemove(w.address)} className="text-xs text-kira-red hover:underline">
+                  <button onClick={() => void handleRemove(w.address)} className="text-tt-red hover:underline">
                     Remove
                   </button>
                 </div>

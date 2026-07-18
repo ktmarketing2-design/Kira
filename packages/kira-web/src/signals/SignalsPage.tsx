@@ -463,7 +463,6 @@ function DdSidebar({ tokenAddress }: { tokenAddress: string }) {
           priceAtCall={selectedKolCall.priceAtCall}
           currentPriceUsd={card.market.priceUsd}
           tokenSymbol={card.symbol ?? "TOKEN"}
-          tokenAddress={card.tokenAddress}
           onClose={() => setSelectedKolCall(null)}
         />
       )}

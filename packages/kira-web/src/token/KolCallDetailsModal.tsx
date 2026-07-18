@@ -8,7 +8,6 @@ interface KolCallModalProps {
   priceAtCall: number | null;
   currentPriceUsd: number | null;
   tokenSymbol: string;
-  tokenAddress: string;
   onClose: () => void;
 }
 
@@ -30,7 +29,6 @@ export default function KolCallDetailsModal({
   priceAtCall,
   currentPriceUsd,
   tokenSymbol,
-  tokenAddress,
   onClose,
 }: KolCallModalProps) {
   const [stats, setStats] = useState<KolSourceStats | null>(null);

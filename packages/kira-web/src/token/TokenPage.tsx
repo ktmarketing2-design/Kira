@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
 import DdCardView from "../shell/DdCardView.js";
 import GeckoTerminalChart from "./GeckoTerminalChart.js";

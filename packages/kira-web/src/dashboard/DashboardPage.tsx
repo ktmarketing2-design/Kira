@@ -118,10 +118,12 @@ export default function DashboardPage() {
         <div className="bg-tt-bg p-4">
           <div className="text-[10px] text-tt-fg-faint uppercase tracking-wide mb-2">Today's Alerts</div>
           <div className="font-display text-xl text-tt-fg">{todaysAlerts}</div>
+          <div className="text-[10px] text-tt-fg-dim mt-1">— vs yesterday</div>
         </div>
         <div className="bg-tt-bg p-4">
           <div className="text-[10px] text-tt-fg-faint uppercase tracking-wide mb-2">Wallets Tracked</div>
           <div className="font-display text-xl text-tt-green">{walletsTracked ?? "—"}</div>
+          <div className="text-[10px] text-tt-fg-dim mt-1">via Roster</div>
         </div>
         <div className="bg-tt-bg p-4">
           <div className="text-[10px] text-tt-fg-faint uppercase tracking-wide mb-2">Tokens DD'd</div>

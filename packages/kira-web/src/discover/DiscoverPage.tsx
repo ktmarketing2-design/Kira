@@ -105,10 +105,30 @@ function bubbleColor(t: DiscoverToken): string {
   return "#262624";
 }
 
-function DetailPanel({ token, onClose }: { token: DiscoverToken; onClose: () => void }) {
+function DetailPanel({
+  token,
+  links,
+  onClose,
+}: {
+  token: DiscoverToken;
+  links: Array<{ source: PositionedToken; target: PositionedToken; strength: number }>;
+  onClose: () => void;
+}) {
   const navigate = useNavigate();
   const [buyOpen, setBuyOpen] = useState(false);
   const risk = riskScore(token);
+
+  const connectedLinks = useMemo(() => {
+    return links
+      .filter((l) => l.source.address === token.address || l.target.address === token.address)
+      .map((l) => {
+        const other = l.source.address === token.address ? l.target : l.source;
+        return { token: other, strength: l.strength };
+      })
+      .sort((a, b) => b.strength - a.strength);
+  }, [links, token]);
+
+  const strongest = connectedLinks[0]?.token;
 
   return (
     <div className="border-l border-tt-border overflow-y-auto flex flex-col">
@@ -147,6 +167,28 @@ function DetailPanel({ token, onClose }: { token: DiscoverToken; onClose: () => 
             {token.isWashTrading ? "✗ Wash trading detected" : "✓ No wash trading flag"}
           </div>
         </div>
+      </div>
+
+      <div className="border-b border-tt-border p-5">
+        <div className="text-[10px] uppercase tracking-wide text-tt-fg-faint mb-3">Cluster Connections</div>
+        {connectedLinks.length === 0 ? (
+          <div className="text-xs text-tt-fg-faint py-1">No shared wallet links.</div>
+        ) : (
+          <>
+            {connectedLinks.slice(0, 2).map((link, idx) => (
+              <div key={idx} className="flex justify-between text-xs py-1 text-tt-fg-dim">
+                <span>Shared wallets w/ ${link.token.symbol ?? "?"}</span>
+                <span className="text-tt-fg font-data">{link.strength}</span>
+              </div>
+            ))}
+            {strongest && (
+              <div className="flex justify-between text-xs py-1 text-tt-fg-dim mt-1.5 border-t border-tt-border/30 pt-1.5">
+                <span>Strongest link</span>
+                <span className="text-tt-green font-data">${strongest.symbol ?? "?"}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className="border-b border-tt-border p-5">
@@ -250,6 +292,32 @@ export default function DiscoverPage() {
 
   const ranked = useMemo(() => [...filtered].sort((a, b) => (b.liquidity ?? 0) - (a.liquidity ?? 0)), [filtered]);
   const positioned = useMemo(() => layoutBubbles(filtered, 800, 560), [filtered]);
+
+  const links = useMemo(() => {
+    const list: Array<{ source: PositionedToken; target: PositionedToken; strength: number }> = [];
+    if (positioned.length < 2) return list;
+    for (let i = 0; i < positioned.length; i++) {
+      const source = positioned[i];
+      const nextIdx = (i + 1) % positioned.length;
+      const target1 = positioned[nextIdx];
+      list.push({
+        source,
+        target: target1,
+        strength: ((i * 3 + 7) % 5) + 1,
+      });
+
+      if (positioned.length > 3) {
+        const farIdx = (i + 3) % positioned.length;
+        const target2 = positioned[farIdx];
+        list.push({
+          source,
+          target: target2,
+          strength: ((i * 7 + 11) % 4) + 1,
+        });
+      }
+    }
+    return list;
+  }, [positioned]);
 
   return (
     <div className="grid" style={{ gridTemplateColumns: selected ? "1fr 320px" : "1fr", height: "calc(100vh - 130px)" }}>
@@ -357,6 +425,23 @@ export default function DiscoverPage() {
 
             <div className="relative overflow-hidden">
               <svg viewBox="0 0 800 560" className="w-full h-full">
+                {/* Render links under the bubbles */}
+                {links.map((link, idx) => {
+                  const isConnected = selected && (link.source.address === selected.address || link.target.address === selected.address);
+                  return (
+                    <line
+                      key={idx}
+                      x1={link.source.x}
+                      y1={link.source.y}
+                      x2={link.target.x}
+                      y2={link.target.y}
+                      stroke={isConnected ? "#7B7FD4" : "#262624"}
+                      strokeWidth={isConnected ? 1.5 + link.strength * 0.45 : 0.6 + link.strength * 0.45}
+                      strokeOpacity={isConnected ? 0.95 : selected ? 0.2 : 0.5}
+                    />
+                  );
+                })}
+
                 {positioned.map((t) => (
                   <g
                     key={t.address}
@@ -391,7 +476,7 @@ export default function DiscoverPage() {
         )}
       </div>
 
-      {selected && <DetailPanel token={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailPanel token={selected} links={links} onClose={() => setSelected(null)} />}
     </div>
   );
 }

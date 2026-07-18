@@ -69,15 +69,25 @@ export default function DdCardView({ card }: { card: DdCard }) {
             <span className="text-[10px] text-tt-fg-faint uppercase tracking-wide">Vol Score ({card.volume.verdict})</span>
           </div>
           <ul>
-            {card.volume.signals.map((s) => (
-              <li
-                key={s.name}
-                className={`text-xs py-1 border-t border-tt-border flex justify-between ${s.flag ? "text-tt-amber" : "text-tt-fg-dim"}`}
-              >
-                <span>{s.name.replace(/_/g, " ")}</span>
-                <span>{s.value.toFixed(2)}</span>
-              </li>
-            ))}
+            {card.volume.signals.map((s) => {
+              const METRIC_LABELS: Record<string, string> = {
+                vol_liq_ratio: "Vol/liq ratio",
+                wallet_diversity: "Wallet diversity",
+                timing_entropy: "Timing entropy",
+                new_wallet_ratio: "New wallet ratio",
+                fdv_liq_ratio: "FDV/liq ratio",
+                round_size_prevalence: "Round size prevalence",
+              };
+              return (
+                <li
+                  key={s.name}
+                  className={`text-xs py-1 border-t border-tt-border flex justify-between ${s.flag ? "text-tt-amber" : "text-tt-fg-dim"}`}
+                >
+                  <span>{METRIC_LABELS[s.name] ?? s.name.replace(/_/g, " ")}</span>
+                  <span>{s.value.toFixed(2)}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

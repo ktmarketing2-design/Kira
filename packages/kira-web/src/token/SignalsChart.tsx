@@ -37,10 +37,10 @@ interface KolCallEvent {
 }
 
 const EVENT_MARKER: Record<string, { shape: "arrowUp" | "arrowDown" | "circle"; color: string }> = {
-  cluster_buy: { shape: "arrowUp", color: "#22c55e" },
-  cluster_sell: { shape: "arrowDown", color: "#ef4444" },
-  new_token_cluster: { shape: "arrowUp", color: "#22c55e" },
-  signal_filter_match: { shape: "circle", color: "#7c6fcd" },
+  cluster_buy: { shape: "arrowUp", color: "#4AF626" },
+  cluster_sell: { shape: "arrowDown", color: "#FF3B3B" },
+  new_token_cluster: { shape: "arrowUp", color: "#4AF626" },
+  signal_filter_match: { shape: "circle", color: "#7B7FD4" },
 };
 
 /** Markers must land exactly on a real candle's time value -- lightweight-charts positions
@@ -100,15 +100,13 @@ export default function SignalsChart({
     const markers: SeriesMarker<Time>[] = [
       ...events.alerts.map((a) => {
         const meta = EVENT_MARKER[a.kind] ?? EVENT_MARKER.cluster_buy;
-        const walletText = a.walletCount != null ? `${a.walletCount} wallets` : "";
-        const usdText = a.totalUsd != null ? `$${a.totalUsd.toLocaleString("en-US")}` : "";
         const rawTime = Math.floor(new Date(a.timestamp).getTime() / 1000);
         return {
           time: snapToNearestCandle(times, rawTime) as UTCTimestamp,
           position: meta.shape === "arrowDown" ? ("aboveBar" as const) : ("belowBar" as const),
           color: meta.color,
           shape: meta.shape,
-          text: [walletText, usdText].filter(Boolean).join(" "),
+          text: "", // Remove text label to prevent overlapping cluster clutter
         };
       }),
       ...events.kolCalls.map((c) => {
@@ -116,9 +114,9 @@ export default function SignalsChart({
         return {
           time: snapToNearestCandle(times, rawTime) as UTCTimestamp,
           position: "aboveBar" as const,
-          color: "#7c6fcd",
+          color: "#E6A817", // Amber matching mockup
           shape: "circle" as const,
-          text: "KOL call",
+          text: "", // Remove text label to prevent overlapping cluster clutter
         };
       }),
     ].sort((a, b) => (a.time as number) - (b.time as number));

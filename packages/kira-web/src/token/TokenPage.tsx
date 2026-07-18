@@ -235,11 +235,13 @@ function TokenSidebar({
   card,
   address,
   events,
+  fullData,
   onRefresh,
 }: {
   card: DdCard;
   address: string;
   events: ChartEvent[];
+  fullData: TokenFullResponse | null;
   onRefresh: () => void;
 }) {
   const [buyModalOpen, setBuyModalOpen] = useState(false);
@@ -344,20 +346,29 @@ function TokenSidebar({
           onClick={() => setHoldersOpen((o) => !o)}
           className="flex justify-between px-4 py-3 text-xs text-tt-fg-dim cursor-pointer hover:text-tt-fg"
         >
-          <span>HolderScan ({card.topHolders.length})</span>
+          <span>HolderScan ({fullData ? fullData.holders.length : card.topHolders.length})</span>
           <span>{holdersOpen ? "▾" : "›"}</span>
         </div>
         {holdersOpen && (
           <div className="border-t border-tt-border">
-            {card.topHolders.slice(0, 10).map((h) => (
-              <div key={h.address} className="flex justify-between px-4 py-2 border-b border-tt-border text-xs">
-                <span className="text-tt-fg-dim font-body">{truncate(h.address)}</span>
-                <span className={h.isDev ? "text-tt-amber" : "text-tt-fg-dim"}>
-                  {h.pct != null ? `${h.pct.toFixed(2)}%` : "—"}
-                  {h.isDev ? " (dev)" : ""}
-                </span>
+            {(!fullData || fullData.holders.length === 0) && (
+              <div className="px-4 py-3 text-xs text-tt-fg-faint">
+                {!fullData ? "Loading holders..." : "No holders found."}
               </div>
-            ))}
+            )}
+            {fullData && fullData.holders.slice(0, 10).map((h) => {
+              const isDev = h.tags?.includes("dev") || h.address === card.safety.deployerAddress;
+              const tagsStr = h.tags && h.tags.length > 0 ? ` (${h.tags.join(", ")})` : "";
+              return (
+                <div key={h.address} className="flex justify-between px-4 py-2 border-b border-tt-border text-xs">
+                  <span className="text-tt-fg-dim font-body">{h.address ? truncate(h.address) : "—"}</span>
+                  <span className={isDev ? "text-tt-amber" : "text-tt-fg-dim font-mono"}>
+                    {h.amountPercentage != null ? `${h.amountPercentage.toFixed(2)}%` : "—"}
+                    {isDev ? " (dev)" : tagsStr}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -574,7 +585,7 @@ export default function TokenPage() {
             />
           </div>
           <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
-            <TokenSidebar card={card} address={address} events={events} onRefresh={() => load(address)} />
+            <TokenSidebar card={card} address={address} events={events} fullData={fullData} onRefresh={() => load(address)} />
           </div>
         </div>
       ) : (
@@ -590,7 +601,7 @@ export default function TokenPage() {
             onOpenProfile={setProfileAddress}
           />
           <div className="mt-6">
-            <TokenSidebar card={card} address={address} events={events} onRefresh={() => load(address)} />
+            <TokenSidebar card={card} address={address} events={events} fullData={fullData} onRefresh={() => load(address)} />
           </div>
         </div>
       ))}

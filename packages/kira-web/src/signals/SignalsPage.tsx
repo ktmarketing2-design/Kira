@@ -357,12 +357,22 @@ function DdSidebar({ tokenAddress }: { tokenAddress: string }) {
             <span className="text-[10px] text-tt-fg-faint uppercase">Vol Score ({card.volume.verdict})</span>
           </div>
           <div className="space-y-1">
-            {card.volume.signals.map((s) => (
-              <div key={s.name} className="flex justify-between text-xs py-1 border-t border-tt-border first:border-t-0 text-tt-fg-dim font-mono">
-                <span>{s.name.replace(/_/g, " ")}</span>
-                <span className={s.flag ? "text-tt-amber" : "text-tt-fg"}>{s.value.toFixed(2)}</span>
-              </div>
-            ))}
+            {card.volume.signals.map((s) => {
+              const METRIC_LABELS: Record<string, string> = {
+                vol_liq_ratio: "Vol/liq ratio",
+                wallet_diversity: "Wallet diversity",
+                timing_entropy: "Timing entropy",
+                new_wallet_ratio: "New wallet ratio",
+                fdv_liq_ratio: "FDV/liq ratio",
+                round_size_prevalence: "Round size prevalence",
+              };
+              return (
+                <div key={s.name} className="flex justify-between text-xs py-1 border-t border-tt-border first:border-t-0 text-tt-fg-dim font-mono">
+                  <span>{METRIC_LABELS[s.name] ?? s.name.replace(/_/g, " ")}</span>
+                  <span className={s.flag ? "text-tt-amber" : "text-tt-fg"}>{s.value.toFixed(2)}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -13,8 +13,8 @@ const WINDOW_OPTIONS = [
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-kira-surface border border-kira-border rounded-md p-4">
-      <h2 className="text-xs uppercase tracking-wide text-kira-text-muted mb-3">{title}</h2>
+    <div className="bg-tt-bg-raised border border-tt-border rounded-md p-4">
+      <h2 className="text-xs uppercase tracking-wide text-tt-fg-dim mb-3">{title}</h2>
       {children}
     </div>
   );
@@ -51,21 +51,21 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <h1 className="font-display text-lg text-kira-text">Settings</h1>
+      <h1 className="font-display text-lg text-tt-fg">Settings</h1>
 
       <Section title="Account">
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <dt className="text-kira-text-muted">Email</dt>
-            <dd className="text-kira-text">{session?.user.email ?? "—"}</dd>
+            <dt className="text-tt-fg-dim">Email</dt>
+            <dd className="text-tt-fg">{session?.user.email ?? "—"}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-kira-text-muted">Tier</dt>
-            <dd className="text-kira-text uppercase">{tier}</dd>
+            <dt className="text-tt-fg-dim">Tier</dt>
+            <dd className="text-tt-fg uppercase">{tier}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-kira-text-muted">Tier expires</dt>
-            <dd className="text-kira-text">
+            <dt className="text-tt-fg-dim">Tier expires</dt>
+            <dd className="text-tt-fg">
               {me?.tierExpiresAt ? new Date(me.tierExpiresAt).toLocaleDateString() : "Never"}
             </dd>
           </div>
@@ -74,17 +74,17 @@ export default function SettingsPage() {
 
       <Section title="Telegram">
         {me?.profile?.telegram_user_id ? (
-          <p className="text-sm text-kira-green">
+          <p className="text-sm text-tt-green">
             Connected {me.profile.telegram_username ? `as @${me.profile.telegram_username}` : ""}
           </p>
         ) : (
           <>
-            <p className="text-sm text-kira-text-muted mb-2">Not connected.</p>
+            <p className="text-sm text-tt-fg-dim mb-2">Not connected.</p>
             <a
               href="https://t.me/KiraByCeronixBot"
               target="_blank"
               rel="noreferrer"
-              className="text-kira-accent text-sm hover:underline"
+              className="text-tt-brand text-sm hover:underline"
             >
               Message @KiraByCeronixBot to connect
             </a>
@@ -95,54 +95,54 @@ export default function SettingsPage() {
       <Section title="Alert Settings">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-kira-text-muted mb-1">Alert Sounds</label>
+            <label className="block text-xs text-tt-fg-dim mb-1">Alert Sounds</label>
             <button
               onClick={() => {
                 const next = !soundsOn;
                 setSoundsOn(next);
                 setAlertSoundsEnabled(next);
               }}
-              className={`text-xs px-3 py-1.5 rounded border ${
-                soundsOn ? "border-kira-accent text-kira-accent" : "border-kira-border text-kira-text-muted"
+              className={`text-xs px-3 py-1.5 rounded-md border ${
+                soundsOn ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
               }`}
             >
               {soundsOn ? "On" : "Off"}
             </button>
-            <p className="text-xs text-kira-text-dim mt-1">Play a short ping in the browser when a new alert arrives.</p>
+            <p className="text-xs text-tt-fg-faint mt-1">Play a short ping in the browser when a new alert arrives.</p>
           </div>
 
           <div>
-            <label className="block text-xs text-kira-text-muted mb-1">Cluster threshold</label>
+            <label className="block text-xs text-tt-fg-dim mb-1">Cluster threshold</label>
             <div className="flex gap-2">
               {[2, 3].map((t) => (
                 <button
                   key={t}
                   disabled={t < minThreshold}
                   onClick={() => setThreshold(t)}
-                  className={`text-xs px-3 py-1.5 rounded border ${
+                  className={`text-xs px-3 py-1.5 rounded-md border ${
                     threshold === t
-                      ? "border-kira-accent text-kira-accent"
-                      : "border-kira-border text-kira-text-muted"
+                      ? "border-tt-brand text-tt-brand"
+                      : "border-tt-border text-tt-fg-dim"
                   } ${t < minThreshold ? "opacity-40 cursor-not-allowed" : ""}`}
                 >
                   {t}+ wallets
                 </button>
               ))}
             </div>
-            {tier === "scout" && <p className="text-xs text-kira-text-dim mt-1">Scout tier is locked to 3+.</p>}
+            {tier === "scout" && <p className="text-xs text-tt-fg-faint mt-1">Scout tier is locked to 3+.</p>}
           </div>
 
           <div>
-            <label className="block text-xs text-kira-text-muted mb-1">Window</label>
+            <label className="block text-xs text-tt-fg-dim mb-1">Window</label>
             <div className="flex gap-2">
               {WINDOW_OPTIONS.map((w) => (
                 <button
                   key={w.value}
                   onClick={() => setWindowMinutes(w.value)}
-                  className={`text-xs px-3 py-1.5 rounded border ${
+                  className={`text-xs px-3 py-1.5 rounded-md border ${
                     windowMinutes === w.value
-                      ? "border-kira-accent text-kira-accent"
-                      : "border-kira-border text-kira-text-muted"
+                      ? "border-tt-brand text-tt-brand"
+                      : "border-tt-border text-tt-fg-dim"
                   }`}
                 >
                   {w.label}
@@ -152,29 +152,29 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-xs text-kira-text-muted mb-1">Min USD per buy</label>
+            <label className="block text-xs text-tt-fg-dim mb-1">Min USD per buy</label>
             <input
               type="number"
               value={minUsd}
               onChange={(e) => setMinUsd(Number(e.target.value))}
-              className="w-32 bg-kira-surface-2 border border-kira-border rounded px-3 py-1.5 text-sm text-kira-text focus:outline-none focus:border-kira-accent"
+              className="w-32 bg-tt-bg-panel border border-tt-border rounded-md px-3 py-1.5 text-sm text-tt-fg focus:outline-none focus:border-tt-brand"
             />
           </div>
 
           <button
             onClick={() => void saveSettings()}
             disabled={saving}
-            className="bg-kira-accent text-kira-bg rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="bg-tt-brand text-tt-bg rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save"}
           </button>
-          {saved && <span className="text-xs text-kira-green ml-3">Saved.</span>}
+          {saved && <span className="text-xs text-tt-green ml-3">Saved.</span>}
         </div>
       </Section>
 
       <Section title="Billing">
-        <p className="text-sm text-kira-text-muted mb-2">Current tier: <span className="text-kira-text uppercase">{tier}</span></p>
-        <a href="/upgrade" className="text-kira-accent text-sm hover:underline">
+        <p className="text-sm text-tt-fg-dim mb-2">Current tier: <span className="text-tt-fg uppercase">{tier}</span></p>
+        <a href="/upgrade" className="text-tt-brand text-sm hover:underline">
           Upgrade →
         </a>
       </Section>

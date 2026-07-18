@@ -74,7 +74,7 @@ export default function AlertsPage() {
 
   return (
     <div>
-      <h1 className="font-display text-lg text-kira-text mb-4">Alerts</h1>
+      <h1 className="font-display text-lg text-tt-fg mb-4">Alerts</h1>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="flex gap-1">
@@ -82,10 +82,10 @@ export default function AlertsPage() {
             <button
               key={t.value}
               onClick={() => setTypeFilter(t.value)}
-              className={`text-xs px-2 py-1 rounded border ${
+              className={`text-xs px-2 py-1 rounded-md border ${
                 typeFilter === t.value
-                  ? "border-kira-accent text-kira-accent"
-                  : "border-kira-border text-kira-text-muted"
+                  ? "border-tt-brand text-tt-brand"
+                  : "border-tt-border text-tt-fg-dim"
               }`}
             >
               {t.label}
@@ -96,50 +96,50 @@ export default function AlertsPage() {
           type="date"
           value={dateFrom}
           onChange={(e) => setDateFrom(e.target.value)}
-          className="bg-kira-surface-2 border border-kira-border rounded px-2 py-1 text-xs text-kira-text"
+          className="bg-tt-bg-panel border border-tt-border rounded-md px-2 py-1 text-xs text-tt-fg"
         />
-        <span className="text-kira-text-dim text-xs">to</span>
+        <span className="text-tt-fg-faint text-xs">to</span>
         <input
           type="date"
           value={dateTo}
           onChange={(e) => setDateTo(e.target.value)}
-          className="bg-kira-surface-2 border border-kira-border rounded px-2 py-1 text-xs text-kira-text"
+          className="bg-tt-bg-panel border border-tt-border rounded-md px-2 py-1 text-xs text-tt-fg"
         />
-        <button onClick={() => void markAllAsRead()} className="text-xs text-kira-accent hover:underline ml-auto">
+        <button onClick={() => void markAllAsRead()} className="text-xs text-tt-brand hover:underline ml-auto">
           Mark all as read
         </button>
       </div>
 
       {loading && alerts.length === 0 ? (
-        <div className="text-kira-text-muted text-sm">Loading...</div>
+        <div className="text-tt-fg-dim text-sm">Loading...</div>
       ) : visible.length === 0 ? (
-        <div className="bg-kira-surface border border-kira-border rounded-md p-8 text-center text-kira-text-muted text-sm">
+        <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm">
           No alerts match these filters.
         </div>
       ) : (
         <div className="space-y-2">
           {visible.map((alert) => (
-            <div key={alert.id} className="bg-kira-surface border border-kira-border rounded-md">
+            <div key={alert.id} className="bg-tt-bg-raised border border-tt-border rounded-md">
               <button
                 onClick={() => void toggleExpand(alert)}
                 className="w-full flex items-center justify-between px-4 py-3 text-left"
               >
                 <div className="flex items-center gap-3">
-                  {!alert.read && <span className="w-1.5 h-1.5 rounded-full bg-kira-accent" />}
-                  <span className="font-display text-sm text-kira-text">${alert.token_symbol ?? "?"}</span>
-                  <span className="font-data text-xs text-kira-text-muted">{truncate(alert.token_address)}</span>
-                  <span className="text-xs text-kira-text-dim">{alert.type.replace(/_/g, " ")}</span>
+                  {!alert.read && <span className="w-1.5 h-1.5 rounded-full bg-tt-brand" />}
+                  <span className="font-display text-sm text-tt-fg">${alert.token_symbol ?? "?"}</span>
+                  <span className="font-data text-xs text-tt-fg-dim">{truncate(alert.token_address)}</span>
+                  <span className="text-xs text-tt-fg-faint">{alert.type.replace(/_/g, " ")}</span>
                 </div>
-                <span className="text-xs text-kira-text-dim">
+                <span className="text-xs text-tt-fg-faint">
                   {new Date(alert.created_at).toLocaleString()}
                 </span>
               </button>
               {expanded === alert.id && (
-                <div className="border-t border-kira-border p-4">
+                <div className="border-t border-tt-border p-4">
                   {ddCards[alert.token_address] ? (
                     <DdCardView card={ddCards[alert.token_address]} />
                   ) : (
-                    <div className="text-kira-text-muted text-xs">Loading Deep Dive...</div>
+                    <div className="text-tt-fg-dim text-xs">Loading Deep Dive...</div>
                   )}
                 </div>
               )}
@@ -151,7 +151,7 @@ export default function AlertsPage() {
       {nextCursor && !loading && (
         <button
           onClick={() => load(nextCursor)}
-          className="mt-4 text-xs text-kira-accent hover:underline"
+          className="mt-4 text-xs text-tt-brand hover:underline"
         >
           Load more
         </button>

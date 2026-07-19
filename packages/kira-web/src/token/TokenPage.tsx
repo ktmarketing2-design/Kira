@@ -1090,9 +1090,9 @@ function TokenSignalsSidebar({
         <div className="text-[10px] text-tt-fg-dim mt-0.5 truncate">{card.name}</div>
         <div className="text-[9px] text-tt-fg-faint font-mono mt-2 break-all">{address}</div>
         <div className="flex gap-2 mt-3 flex-wrap">
-          <span className="text-[9px] border border-tt-border rounded px-2 py-0.5 text-tt-fg-dim bg-tt-bg font-mono">Solana</span>
-          <span className="text-[9px] border border-tt-border rounded px-2 py-0.5 text-tt-green bg-tt-bg font-mono">
-            {card.graduated ? "✓ Graduated to PumpSwap" : "✓ Bonding Curve"}
+          <span className="text-[9px] border border-tt-border rounded px-2 py-0.5 text-tt-green bg-tt-bg font-mono flex items-center gap-1">
+            <Check size={9} className="stroke-[2.5]" />
+            {card.graduated ? "Graduated to PumpSwap" : "Bonding Curve"}
           </span>
         </div>
       </div>
@@ -1105,19 +1105,31 @@ function TokenSignalsSidebar({
         <div className="space-y-1.5 divide-y divide-tt-border/40 font-mono text-[10px]">
           <div className={`pt-1.5 flex justify-between ${card.safety.mintAuthorityRevoked ? "text-tt-green" : "text-tt-amber"}`}>
             <span>Mint authority</span>
-            <span>{card.safety.mintAuthorityRevoked ? "✓ Revoked" : "⚠ Active"}</span>
+            <span className="flex items-center gap-1">
+              {card.safety.mintAuthorityRevoked ? <Check size={11} className="stroke-[2.5]" /> : <AlertTriangle size={11} />}
+              {card.safety.mintAuthorityRevoked ? "Revoked" : "Active"}
+            </span>
           </div>
           <div className={`pt-1.5 flex justify-between ${card.safety.freezeAuthorityRevoked ? "text-tt-green" : "text-tt-amber"}`}>
             <span>Freeze authority</span>
-            <span>{card.safety.freezeAuthorityRevoked ? "✓ Revoked" : "⚠ Active"}</span>
+            <span className="flex items-center gap-1">
+              {card.safety.freezeAuthorityRevoked ? <Check size={11} className="stroke-[2.5]" /> : <AlertTriangle size={11} />}
+              {card.safety.freezeAuthorityRevoked ? "Revoked" : "Active"}
+            </span>
           </div>
           <div className={`pt-1.5 flex justify-between ${card.safety.lpLocked ? "text-tt-green" : "text-tt-amber"}`}>
             <span>LP pool status</span>
-            <span>{card.safety.lpLocked ? "✓ Locked" : "⚠ Unlocked"}</span>
+            <span className="flex items-center gap-1">
+              {card.safety.lpLocked ? <Check size={11} className="stroke-[2.5]" /> : <AlertTriangle size={11} />}
+              {card.safety.lpLocked ? "Locked" : "Unlocked"}
+            </span>
           </div>
           <div className={`pt-1.5 flex justify-between ${card.safety.honeypotClean ? "text-tt-green" : "text-tt-amber"}`}>
             <span>Honeypot clean</span>
-            <span>{card.safety.honeypotClean ? "✓ Clean" : "⚠ Warning"}</span>
+            <span className="flex items-center gap-1">
+              {card.safety.honeypotClean ? <Check size={11} className="stroke-[2.5]" /> : <AlertTriangle size={11} />}
+              {card.safety.honeypotClean ? "Clean" : "Warning"}
+            </span>
           </div>
           {card.safety.top10HolderPct != null && (
             <div className="pt-1.5 flex justify-between text-tt-fg-dim">
@@ -1213,7 +1225,9 @@ function TokenSignalsSidebar({
           className="flex justify-between items-center p-4 text-xs font-semibold text-tt-fg border-b border-tt-border cursor-pointer hover:bg-tt-bg/25"
         >
           <span>Research Thread</span>
-          <span className="font-mono text-tt-fg-dim">{notesOpen ? "▾" : "›"}</span>
+          <span className="font-mono text-tt-fg-dim flex items-center">
+            {notesOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </span>
         </div>
         {notesOpen && (
           <div className="p-4 space-y-3">

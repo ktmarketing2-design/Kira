@@ -614,128 +614,13 @@ function TokenSignalsTab({
     const N = candles.length;
     if (N === 0) return list;
 
-    const getMockPrice = (mockIdx: number) => candles[Math.min(mockIdx, N - 1)]?.close ?? currentPriceUsd ?? 0;
-    const getMockReturn = (mockIdx: number) => {
-      const p = getMockPrice(mockIdx);
-      if (!p || !currentPriceUsd) return { text: "—", good: true };
-      const pct = ((currentPriceUsd - p) / p) * 100;
-      return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%`, good: pct >= 0 };
-    };
-
-    const idx1 = Math.floor(N * 0.45);
-    const r1 = getMockReturn(idx1);
-    list.push({
-      id: "cluster1",
-      kind: "cluster",
-      label: "3 wallets",
-      caller: "3 Tracked Wallets",
-      callerType: "Cluster Buy · 3 wallets",
-      price: getMockPrice(idx1),
-      ret: r1.text,
-      wr: "—",
-      avg: "—",
-      time: new Date(Date.now() - 12 * 1000).toISOString(),
-      timeAgo: "12s ago",
-      total: "—",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(idx1) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(idx1) / (currentPriceUsd || 1))),
-      good: r1.good,
-      title: "3 top wallets bought",
-      subtitle: "Cluster buy · combined 4.2 SOL",
-      idx: idx1
-    });
-
-    const idx2 = Math.floor(N * 0.20);
-    const r2 = getMockReturn(idx2);
-    list.push({
-      id: "kol1",
-      kind: "kol",
-      label: "@spydefi",
-      caller: "@spydefi",
-      callerType: "KOL Call · Telegram",
-      price: getMockPrice(idx2),
-      ret: r2.text,
-      wr: "68%",
-      avg: "+24.5%",
-      time: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
-      timeAgo: "4m ago",
-      total: "214",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(idx2) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(idx2) / (currentPriceUsd || 1))),
-      good: r2.good,
-      title: "@spydefi called it",
-      subtitle: "KOL call · Telegram",
-      idx: idx2
-    });
-
-    const idx3 = Math.floor(N * 0.70);
-    const r3 = getMockReturn(idx3);
-    list.push({
-      id: "kol2",
-      kind: "kol",
-      label: "@cryptogem",
-      caller: "@cryptogem",
-      callerType: "KOL Call · Telegram",
-      price: getMockPrice(idx3),
-      ret: r3.text,
-      wr: "44%",
-      avg: "-6.2%",
-      time: new Date(Date.now() - 19 * 60 * 1000).toISOString(),
-      timeAgo: "19m ago",
-      total: "87",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(idx3) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(idx3) / (currentPriceUsd || 1))),
-      good: r3.good,
-      title: "@cryptogem called it",
-      subtitle: "KOL call · Telegram",
-      idx: idx3
-    });
-
-    const idx4 = Math.floor(N * 0.80);
-    const r4 = getMockReturn(idx4);
-    list.push({
-      id: "rug1",
-      kind: "rug",
-      label: "Rug flag",
-      caller: "Community Report",
-      callerType: "Rug Flag",
-      price: getMockPrice(idx4),
-      ret: r4.text,
-      wr: "—",
-      avg: "—",
-      time: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-      timeAgo: "8m ago",
-      total: "—",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(idx4) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(idx4) / (currentPriceUsd || 1))),
-      good: r4.good,
-      title: "Flagged as possible rug pull",
-      subtitle: "Community report",
-      idx: idx4
-    });
-
-    const idx5 = Math.floor(N * 0.85);
-    const r5 = getMockReturn(idx5);
-    list.push({
-      id: "lp1",
-      kind: "lp",
-      label: "LP unlock",
-      caller: "On-chain Event",
-      callerType: "LP Unlocked",
-      price: getMockPrice(idx5),
-      ret: r5.text,
-      wr: "—",
-      avg: "—",
-      time: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
-      timeAgo: "11m ago",
-      total: "—",
-      mcap: fmtUsd(fdvUsd * (getMockPrice(idx5) / (currentPriceUsd || 1))),
-      liq: fmtUsd(liquidityUsd * (getMockPrice(idx5) / (currentPriceUsd || 1))),
-      good: r5.good,
-      title: "LP unlocked",
-      subtitle: "Liquidity pool authority change",
-      idx: idx5
-    });
+    // Real events only -- kira_alerts (cluster buys/sells) and kira_kol_calls (real tracked KOL
+    // sources), each with its own actual timestamp. This tab previously also injected 5
+    // hardcoded fake events (a fictional "3 Tracked Wallets" cluster buy, two fake KOL accounts
+    // @spydefi/@cryptogem with invented win rates, a "Community Report" rug flag, and an
+    // "LP Unlocked" event) on every token regardless of what actually happened -- removed
+    // entirely as a data integrity issue, not simplified/relabeled, since neither the community
+    // report nor LP-unlock features exist anywhere in this codebase.
 
     alerts.forEach((a) => {
       const idx = nearestIndex(a.timestamp);
@@ -891,7 +776,13 @@ function TokenSignalsTab({
           {dataLoading ? (
             <div className="text-xs text-tt-fg-dim font-mono animate-pulse py-8 text-center">Loading events...</div>
           ) : eventsList.length === 0 ? (
-            <div className="text-xs text-tt-fg-dim font-mono py-8 text-center">No alerts or event data available for this token.</div>
+            <div className="text-xs text-tt-fg-dim font-mono py-10 text-center leading-relaxed">
+              No Kira signals for this token yet.
+              <br />
+              Signals appear when your tracked wallets buy,
+              <br />
+              your KOL channels call it, or a Signal Filter fires.
+            </div>
           ) : (
             eventsList.map((e) => {
               let dotClass = "bg-tt-green";

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
-import { ArrowLeftRight, Users, Award, Code, BarChart4, Check, AlertTriangle, ExternalLink, Copy, ChevronDown, ChevronRight, LineChart, Radio } from "lucide-react";
+import { ArrowLeftRight, Users, Award, Code, BarChart4, Check, AlertTriangle, ChevronDown, ChevronRight, LineChart, Radio } from "lucide-react";
 import DdCardView from "../shell/DdCardView.js";
 import GeckoTerminalChart from "./GeckoTerminalChart.js";
 import SignalsChart from "./SignalsChart.js";

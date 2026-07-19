@@ -34,10 +34,17 @@ interface SmartMoneyWallet {
   tags: string[] | null;
 }
 
-const TAG_BADGES: Record<string, string> = {
-  smart_degen: "🧠",
-  kol: "🎤",
-  whale: "🐳",
+// Colored pill per tag. Only smart_degen/fresh_wallet/bundler were seen in the live GMGN holders
+// sample checked when this feature was first built -- kol/whale/axiom/padre/fomo render correctly
+// if GMGN ever emits them, but that hasn't been directly verified.
+const TAG_BADGES: Record<string, { emoji: string; className: string }> = {
+  smart_degen: { emoji: "🧠", className: "border-tt-brand/50 text-tt-brand bg-tt-brand/10" },
+  kol: { emoji: "🎤", className: "border-tt-green/50 text-tt-green bg-tt-green/10" },
+  axiom: { emoji: "⚡", className: "border-blue-400/50 text-blue-400 bg-blue-400/10" },
+  padre: { emoji: "🌊", className: "border-teal-400/50 text-teal-400 bg-teal-400/10" },
+  fomo: { emoji: "🔴", className: "border-tt-red/50 text-tt-red bg-tt-red/10" },
+  fresh_wallet: { emoji: "🆕", className: "border-tt-fg-faint/50 text-tt-fg-faint bg-tt-fg-faint/10" },
+  whale: { emoji: "🐳", className: "border-tt-amber/50 text-tt-amber bg-tt-amber/10" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -323,8 +330,12 @@ function SmartMoney({ onOpenProfile }: { onOpenProfile: (address: string, label:
                       {(w.tags ?? [])
                         .filter((t) => t in TAG_BADGES)
                         .map((t) => (
-                          <span key={t} title={t}>
-                            {TAG_BADGES[t]}
+                          <span
+                            key={t}
+                            title={t}
+                            className={`text-[10px] leading-none border rounded-full px-1.5 py-0.5 ${TAG_BADGES[t].className}`}
+                          >
+                            {TAG_BADGES[t].emoji}
                           </span>
                         ))}
                     </div>

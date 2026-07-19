@@ -50,11 +50,19 @@ async function loadMostCalledTokens(limit: number): Promise<string[]> {
 // holder record (verified live against a real token's `token holders` response) -- NOT nested
 // under a maker_info object, which is how an earlier spec draft assumed this endpoint's shape;
 // that maker_info wrapper only exists on the separate `track kol` trade-record endpoint.
+// Tag-based fallback priority, most-specific/highest-signal first. Only "fresh_wallet",
+// "smart_degen", and "bundler" were observed in the live holders response checked before this
+// worker was first built -- "kol"/"whale"/"padre"/"axiom"/"fomo" were not present in that sample,
+// so this priority order is implemented as specified but unverified against real data for those
+// five; if GMGN never actually emits them, those branches are simply dead code, not fabricated.
 function labelFor(rank: number, identity: { name: string | null; twitterUsername: string | null; tags: string[] }): string {
   if (identity.twitterUsername) return `@${identity.twitterUsername}`;
   if (identity.name) return identity.name;
   if (identity.tags.includes("kol")) return `KOL Trader #${rank}`;
   if (identity.tags.includes("whale")) return `Whale #${rank}`;
+  if (identity.tags.includes("padre")) return `Padre Wallet #${rank}`; // GMGN's term for early buyers
+  if (identity.tags.includes("axiom")) return `Axiom Trader #${rank}`; // Axiom terminal users = serious traders
+  if (identity.tags.includes("smart_degen")) return `Smart Degen #${rank}`;
   return `Smart Trader #${rank}`;
 }
 

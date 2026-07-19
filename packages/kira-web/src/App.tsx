@@ -12,7 +12,6 @@ import TokenPage from "./token/TokenPage.js";
 import ChartSharePage from "./token/ChartSharePage.js";
 import KolPage from "./kol/KolPage.js";
 import DiscoverPage from "./discover/DiscoverPage.js";
-import SignalsPage from "./signals/SignalsPage.js";
 import WatchlistPage from "./watchlist/WatchlistPage.js";
 import PnlPage from "./pnl/PnlPage.js";
 import SettingsPage from "./settings/SettingsPage.js";
@@ -25,6 +24,13 @@ function Protected({ children }: { children: React.ReactNode }) {
       <Shell>{children}</Shell>
     </AuthGuard>
   );
+}
+
+/** Redirect /signals → /token/:address?tab=signals */
+function SignalsRedirect() {
+  const { address } = useParams<{ address: string }>();
+  const defaultAddr = address || "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump";
+  return <Navigate to={`/token/${defaultAddr}?tab=signals`} replace />;
 }
 
 /** Redirect /chart/:address → /token/:address so old links keep working */
@@ -49,8 +55,8 @@ export default function App() {
       <Route path="/token/:address" element={<Protected><TokenPage /></Protected>} />
       <Route path="/kol" element={<Protected><KolPage /></Protected>} />
       <Route path="/discover" element={<Protected><DiscoverPage /></Protected>} />
-      <Route path="/signals" element={<Protected><SignalsPage /></Protected>} />
-      <Route path="/signals/:address" element={<Protected><SignalsPage /></Protected>} />
+      <Route path="/signals" element={<Protected><SignalsRedirect /></Protected>} />
+      <Route path="/signals/:address" element={<Protected><SignalsRedirect /></Protected>} />
       {/* /chart/:address used to be a separate page — now the token page IS the chart studio */}
       <Route path="/chart/:address" element={<Protected><ChartRedirect /></Protected>} />
       <Route path="/watchlist" element={<Protected><WatchlistPage /></Protected>} />

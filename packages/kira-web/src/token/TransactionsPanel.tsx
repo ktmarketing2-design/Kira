@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
+import { Brain, Mic, Rat, Bot, AlertTriangle } from "lucide-react";
 import { apiRequest } from "../lib/api.js";
 
 const REFRESH_INTERVAL_MS = 30_000;
 const PAGE_SIZE = 20;
-const TAG_LABELS: Record<string, string> = {
-  smart_degen: "🧠",
-  renowned: "🎤",
-  rat_trader: "🐀",
-  bundler: "🤖",
+const TAG_ICONS: Record<string, typeof Brain> = {
+  smart_degen: Brain,
+  renowned: Mic,
+  rat_trader: Rat,
+  bundler: Bot,
 };
 
 interface RawTransaction {
@@ -116,8 +117,9 @@ export default function TransactionsPanel({
 
   if (unavailable) {
     return (
-      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm font-mono">
-        ⚠️ Helius RPC Limit exceeded (429: max usage reached). Please upgrade your Helius API Key in your .env file on the VPS.
+      <div className="bg-tt-bg-raised border border-tt-border rounded-md p-8 text-center text-tt-fg-dim text-sm font-mono flex flex-col items-center gap-2">
+        <AlertTriangle size={16} className="text-tt-amber" />
+        Helius RPC Limit exceeded (429: max usage reached). Please upgrade your Helius API Key in your .env file on the VPS.
       </div>
     );
   }
@@ -182,11 +184,14 @@ export default function TransactionsPanel({
                 className="flex-1 text-left text-tt-brand hover:underline flex items-center gap-1"
               >
                 {t.wallet}
-                {tags.map((tag) => (
-                  <span key={tag} title={tag}>
-                    {TAG_LABELS[tag] ?? ""}
-                  </span>
-                ))}
+                {tags.map((tag) => {
+                  const Icon = TAG_ICONS[tag];
+                  return Icon ? (
+                    <span key={tag} title={tag}>
+                      <Icon size={11} className="inline" />
+                    </span>
+                  ) : null;
+                })}
               </button>
               <span className="text-tt-fg-faint">{t.timeAgo}</span>
             </div>

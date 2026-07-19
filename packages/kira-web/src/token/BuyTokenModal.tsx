@@ -1,3 +1,4 @@
+import { X, Wallet } from "lucide-react";
 import { getBuyBots } from "./buyBots.js";
 
 interface BuyTokenModalProps {
@@ -22,12 +23,14 @@ export default function BuyTokenModal({ symbol, tokenAddress, isGraduated, onClo
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-3 right-3 text-tt-fg-faint hover:text-tt-fg text-lg leading-none"
+          className="absolute top-3 right-3 text-tt-fg-faint hover:text-tt-fg leading-none"
         >
-          ✕
+          <X size={18} />
         </button>
 
-        <h2 className="font-display text-lg text-tt-fg mb-1">💰 Buy ${symbol}</h2>
+        <h2 className="font-display text-lg text-tt-fg mb-1 flex items-center gap-1.5">
+          <Wallet size={16} /> Buy ${symbol}
+        </h2>
         <p className="text-xs text-tt-fg-dim mb-4">Choose your preferred trading bot:</p>
 
         <div className="grid grid-cols-2 gap-2">

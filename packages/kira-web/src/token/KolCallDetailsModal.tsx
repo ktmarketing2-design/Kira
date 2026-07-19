@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Megaphone, X } from "lucide-react";
 import { apiRequest } from "../lib/api.js";
 
 interface KolCallModalProps {
@@ -55,11 +56,11 @@ export default function KolCallDetailsModal({
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-4 border-b border-tt-border font-mono">
           <div className="flex items-center gap-2">
-            <span className="text-base text-tt-amber">📢</span>
+            <Megaphone size={15} className="text-tt-amber" />
             <span className="font-display text-sm text-tt-fg">{sourceName} call details</span>
           </div>
-          <button onClick={onClose} className="text-tt-fg-dim hover:text-tt-fg text-base cursor-pointer">
-            ✕
+          <button onClick={onClose} className="text-tt-fg-dim hover:text-tt-fg cursor-pointer">
+            <X size={16} />
           </button>
         </div>
 

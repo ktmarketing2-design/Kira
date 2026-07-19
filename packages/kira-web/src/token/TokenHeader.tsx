@@ -1,3 +1,4 @@
+import { Send, Globe } from "lucide-react";
 import type { DdCard } from "../lib/types.js";
 import type { TokenFullPriceStats } from "./TokenFullTabs.js";
 
@@ -83,12 +84,12 @@ export default function TokenHeader({
         )}
         {meta.social.telegram && (
           <a href={meta.social.telegram} target="_blank" rel="noreferrer" className="hover:text-tt-fg">
-            ✈️
+            <Send size={13} />
           </a>
         )}
         {meta.social.website && (
           <a href={meta.social.website} target="_blank" rel="noreferrer" className="hover:text-tt-fg">
-            🌐
+            <Globe size={13} />
           </a>
         )}
       </div>

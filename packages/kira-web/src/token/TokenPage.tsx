@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
-import { ArrowLeftRight, Users, Award, Code, BarChart4, Check, AlertTriangle, ChevronDown, ChevronRight, LineChart, Radio } from "lucide-react";
+import { ArrowLeftRight, Users, Award, Code, BarChart4, Check, AlertTriangle, ChevronDown, ChevronRight, LineChart, Radio, Wallet } from "lucide-react";
 import DdCardView from "../shell/DdCardView.js";
 import GeckoTerminalChart from "./GeckoTerminalChart.js";
 import SignalsChart from "./SignalsChart.js";
@@ -458,9 +458,9 @@ function TokenSidebar({
         <div className="flex gap-3">
           <button
             onClick={() => setBuyModalOpen(true)}
-            className="flex-1 text-center bg-tt-brand text-tt-bg rounded-md px-3 py-2 text-sm font-medium hover:opacity-90"
+            className="flex-1 text-center bg-tt-brand text-tt-bg rounded-md px-3 py-2 text-sm font-medium hover:opacity-90 inline-flex items-center justify-center gap-1.5"
           >
-            💰 Buy Token
+            <Wallet size={14} /> Buy Token
           </button>
           <button
             onClick={onRefresh}

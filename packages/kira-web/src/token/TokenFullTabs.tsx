@@ -83,11 +83,13 @@ export interface TokenFullMetaStats {
   lockedRatio: number | null;
 }
 
-const TAG_LABELS: Record<string, string> = {
-  smart_degen: "🧠",
-  renowned: "🎤",
-  rat_trader: "🐀",
-  bundler: "🤖",
+import { Brain, Mic, Rat, Bot, AlertTriangle, CheckCircle2, Skull } from "lucide-react";
+
+const TAG_ICONS: Record<string, typeof Brain> = {
+  smart_degen: Brain,
+  renowned: Mic,
+  rat_trader: Rat,
+  bundler: Bot,
 };
 
 function truncate(address: string): string {
@@ -154,7 +156,14 @@ function HolderTraderTable({
               <td className="px-3 py-2">
                 {h.tags.map((tag) => (
                   <span key={tag} title={tag} className="mr-1">
-                    {TAG_LABELS[tag] ?? tag}
+                    {TAG_ICONS[tag] ? (
+                      (() => {
+                        const Icon = TAG_ICONS[tag];
+                        return <Icon size={11} className="inline" />;
+                      })()
+                    ) : (
+                      tag
+                    )}
                   </span>
                 ))}
               </td>
@@ -204,8 +213,9 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
           </a>
         </div>
         {isSerialRugger && (
-          <div className="mt-2 inline-block text-xs text-tt-red border border-tt-red/50 bg-tt-red/10 rounded-md px-2 py-1">
-            ⚠️ Serial rugger — {((dev.history?.openRatio ?? 0) * 100).toFixed(0)}% open rate across{" "}
+          <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-tt-red border border-tt-red/50 bg-tt-red/10 rounded-md px-2 py-1">
+            <AlertTriangle size={12} />
+            Serial rugger — {((dev.history?.openRatio ?? 0) * 100).toFixed(0)}% open rate across{" "}
             {dev.history?.totalCreated} launches
           </div>
         )}
@@ -266,9 +276,13 @@ export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
                     </td>
                     <td className="px-3 py-2 text-center text-xs">
                       {t.isOpen ? (
-                        <span className="text-tt-green">✅ Live</span>
+                        <span className="text-tt-green inline-flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Live
+                        </span>
                       ) : (
-                        <span className="text-tt-red">💀 Dead</span>
+                        <span className="text-tt-red inline-flex items-center gap-1">
+                          <Skull size={12} /> Dead
+                        </span>
                       )}
                     </td>
                   </tr>

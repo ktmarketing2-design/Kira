@@ -506,20 +506,6 @@ function TokenSidebar({
   );
 }
 
-      {selectedKolCall && (
-        <KolCallDetailsModal
-          sourceId={selectedKolCall.sourceId}
-          sourceName={selectedKolCall.sourceName}
-          calledAt={selectedKolCall.calledAt}
-          priceAtCall={selectedKolCall.priceAtCall}
-          currentPriceUsd={card.market.priceUsd}
-          tokenSymbol={card.symbol ?? "TOKEN"}
-          onClose={() => setSelectedKolCall(null)}
-        />
-      )}
-    </div>
-  );
-}
 
 interface RawCandle {
   timestamp: number;

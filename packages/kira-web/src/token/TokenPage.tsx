@@ -735,27 +735,27 @@ function TokenSignalsTab({
     });
 
     alerts.forEach((a) => {
-      const idx = nearestIndex(a.created_at);
+      const idx = nearestIndex(a.timestamp);
       const p = candles[idx]?.close ?? currentPriceUsd ?? 0;
       const pct = p && currentPriceUsd ? ((currentPriceUsd - p) / p) * 100 : 0;
       list.push({
         id: a.id,
-        kind: a.type.startsWith("cluster") ? "cluster" : "rug",
-        label: a.wallet_count ? `${a.wallet_count} wallets` : "alert",
+        kind: a.kind.startsWith("cluster") ? "cluster" : "rug",
+        label: a.walletCount ? `${a.walletCount} wallets` : "alert",
         caller: "Kira Alert Engine",
-        callerType: a.type.replace(/_/g, " "),
+        callerType: a.kind.replace(/_/g, " "),
         price: p,
         ret: `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%`,
         wr: "—",
         avg: "—",
-        time: a.created_at,
-        timeAgo: timeAgo(a.created_at),
+        time: a.timestamp,
+        timeAgo: timeAgo(a.timestamp),
         total: "—",
         mcap: fmtUsd(fdvUsd * (p / (currentPriceUsd || 1))),
         liq: fmtUsd(liquidityUsd * (p / (currentPriceUsd || 1))),
         good: pct >= 0,
-        title: a.type === "cluster_sell" ? "Cluster sell detected" : "Cluster buy detected",
-        subtitle: `${a.wallet_count ?? 0} tracked wallets traded`,
+        title: a.kind === "cluster_sell" ? "Cluster sell detected" : "Cluster buy detected",
+        subtitle: `${a.walletCount ?? 0} tracked wallets traded`,
         idx
       });
     });

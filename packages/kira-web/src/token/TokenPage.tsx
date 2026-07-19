@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiRequest, ApiError } from "../lib/api.js";
+import { ArrowLeftRight, Users, Award, Code, BarChart4, Check, AlertTriangle, ExternalLink, Copy, ChevronDown, ChevronRight, LineChart, Radio } from "lucide-react";
 import DdCardView from "../shell/DdCardView.js";
 import GeckoTerminalChart from "./GeckoTerminalChart.js";
 import SignalsChart from "./SignalsChart.js";
@@ -70,12 +71,12 @@ interface TokenFullResponse {
 }
 
 type SubTab = "trades" | "holders" | "traders" | "devInfo" | "stats";
-const SUB_TABS: Array<{ id: SubTab; label: string }> = [
-  { id: "trades", label: "📊 Trades" },
-  { id: "holders", label: "👥 Holders" },
-  { id: "traders", label: "🏆 Traders" },
-  { id: "devInfo", label: "👨‍💻 Dev Info" },
-  { id: "stats", label: "📈 Stats" },
+const SUB_TABS: Array<{ id: SubTab; label: string; icon: any }> = [
+  { id: "trades", label: "Trades", icon: ArrowLeftRight },
+  { id: "holders", label: "Holders", icon: Users },
+  { id: "traders", label: "Traders", icon: Award },
+  { id: "devInfo", label: "Dev Info", icon: Code },
+  { id: "stats", label: "Stats", icon: BarChart4 },
 ];
 
 /**
@@ -111,24 +112,25 @@ function TokenChart({ address, card, chartMode, setChartMode }: {
 }) {
   return (
     <div>
-      {/* Primary chart/signals tab switcher + open link */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2 font-mono">
         <button
           onClick={() => setChartMode("gecko")}
-          className={`text-xs px-2 py-1 rounded-md border ${
+          className={`text-xs px-2 py-1 rounded-md border flex items-center gap-1.5 cursor-pointer bg-transparent ${
             chartMode === "gecko" ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
           }`}
         >
-          📊 Chart
+          <LineChart size={12} className="shrink-0" />
+          Chart
         </button>
         <button
           onClick={() => setChartMode("signals")}
           title="Shows cluster alerts, signal filter matches, and KOL calls for this token on a price chart."
-          className={`text-xs px-2 py-1 rounded-md border ${
+          className={`text-xs px-2 py-1 rounded-md border flex items-center gap-1.5 cursor-pointer bg-transparent ${
             chartMode === "signals" ? "border-tt-brand text-tt-brand" : "border-tt-border text-tt-fg-dim"
           }`}
         >
-          🎯 Kira Signals
+          <Radio size={12} className="shrink-0" />
+          Kira Signals
         </button>
       </div>
 
@@ -182,12 +184,13 @@ function TokenSubTabs({
           <button
             key={t.id}
             onClick={() => setSubTab(t.id)}
-            className={`text-sm px-3 py-2 border-b-2 -mb-px whitespace-nowrap ${
+            className={`text-sm px-3 py-2 border-b-2 -mb-px whitespace-nowrap flex items-center gap-1.5 ${
               subTab === t.id
                 ? "border-tt-brand text-tt-brand"
                 : "border-transparent text-tt-fg-dim hover:text-tt-fg"
             }`}
           >
+            <t.icon size={13} className="shrink-0 animate-none" />
             {t.label}
           </button>
         ))}
@@ -1406,15 +1409,17 @@ export default function TokenPage() {
               <div className="flex items-center gap-2 mb-4">
                 <button
                   onClick={() => setChartMode("gecko")}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-tt-border text-tt-fg-dim hover:text-tt-fg cursor-pointer bg-transparent font-mono"
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-tt-border text-tt-fg-dim hover:text-tt-fg cursor-pointer bg-transparent font-mono flex items-center gap-1.5"
                 >
-                  📊 Chart
+                  <LineChart size={12} className="shrink-0" />
+                  Chart
                 </button>
                 <button
                   onClick={() => setChartMode("signals")}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-tt-brand text-tt-brand font-semibold cursor-pointer bg-transparent font-mono"
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-tt-brand text-tt-brand font-semibold cursor-pointer bg-transparent font-mono flex items-center gap-1.5"
                 >
-                  🎯 Kira Signals
+                  <Radio size={12} className="shrink-0" />
+                  Kira Signals
                 </button>
               </div>
               <TokenSignalsTab
@@ -1459,18 +1464,20 @@ export default function TokenPage() {
         chartMode === "signals" ? (
           // Mobile Signals Mode
           <div>
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-4 font-mono">
               <button
                 onClick={() => setChartMode("gecko")}
-                className="text-xs px-2.5 py-1.5 rounded-md border border-tt-border text-tt-fg-dim font-mono"
+                className="text-xs px-2.5 py-1.5 rounded-md border border-tt-border text-tt-fg-dim flex items-center gap-1.5 bg-transparent cursor-pointer"
               >
-                📊 Chart
+                <LineChart size={12} className="shrink-0" />
+                Chart
               </button>
               <button
                 onClick={() => setChartMode("signals")}
-                className="text-xs px-2.5 py-1.5 rounded-md border border-tt-brand text-tt-brand font-semibold font-mono"
+                className="text-xs px-2.5 py-1.5 rounded-md border border-tt-brand text-tt-brand font-semibold flex items-center gap-1.5 bg-transparent cursor-pointer"
               >
-                🎯 Kira Signals
+                <Radio size={12} className="shrink-0" />
+                Kira Signals
               </button>
             </div>
             <TokenSignalsTab

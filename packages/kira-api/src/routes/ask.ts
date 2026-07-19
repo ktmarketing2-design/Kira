@@ -4,7 +4,7 @@ import { redis } from "../lib/redis.js";
 import { supabase } from "../lib/supabase.js";
 import { ddQueue, ddQueueEvents } from "../lib/queue.js";
 import { requireAskQuota } from "../middleware/tier.js";
-import { gemini } from "@ceronix/kira-shared";
+import { gemini, twitter } from "@ceronix/kira-shared";
 
 const router = Router();
 
@@ -106,6 +106,25 @@ const askSchema = z.object({
   question: z.string().min(1).max(500),
 });
 
+const TWITTER_INTENT_RE = /twitter|\bx\b|tweet|people (are )?saying|social (media )?(sentiment|buzz|chatter)/i;
+
+/** Only called when the question actually looks Twitter-related -- unlike kolCalls/smartMoney/
+ * rosterActivity (all free, already-fetched-from-our-own-DB data), this burns a real request
+ * against Twitter's 1-req/5s free-tier limit, so it is not worth fetching on every single /ask
+ * call regardless of relevance. */
+async function getTwitterMentions(tokenSymbol: string | null, tokenAddress: string): Promise<
+  Array<{ text: string; author: string | null; createdAt: string; likeCount: number }>
+> {
+  const query = tokenSymbol ? ("$" + tokenSymbol + " OR " + tokenAddress) : tokenAddress;
+  const tweets = await twitter.searchTweets(query, 5);
+  return tweets.map((t) => ({
+    text: t.text.slice(0, 280),
+    author: t.authorUsername,
+    createdAt: t.createdAt,
+    likeCount: t.likeCount,
+  }));
+}
+
 const SYSTEM_PROMPT = `You are Kira, an on-chain intelligence assistant for Solana traders.
 Answer the user's question about the token using only the data provided.
 Be concise (under 500 characters). Use numbers and facts. If data is not available, say so honestly.`;
@@ -119,12 +138,16 @@ router.post("/", requireAskQuota, async (req, res) => {
   const { tokenAddress, question } = parsed.data;
   const userId = req.user!.id;
 
+  const wantsTwitter = TWITTER_INTENT_RE.test(question);
+
   const [ddCard, kolCalls, smartMoney, rosterActivity] = await Promise.all([
     getDdCard(tokenAddress, userId),
     getKolCallsForToken(tokenAddress),
     getSmartMoneyForToken(tokenAddress),
     getRosterActivityForToken(tokenAddress, userId),
   ]);
+
+  const twitterMentions = wantsTwitter ? await getTwitterMentions(ddCard?.symbol ?? null, tokenAddress) : null;
 
   const contextData = {
     token: {
@@ -151,6 +174,7 @@ router.post("/", requireAskQuota, async (req, res) => {
       usdValue: e.usd_value,
       timestamp: e.block_time,
     })),
+    ...(twitterMentions ? { recentTwitterMentions: twitterMentions } : {}),
   };
 
   const answer = await gemini.generateText(

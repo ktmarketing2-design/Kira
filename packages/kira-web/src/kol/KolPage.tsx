@@ -20,7 +20,7 @@ interface KolSourceStats {
 interface KolCall {
   id: string;
   sourceId: string;
-  sourceType: "telegram" | "gmgn_kol";
+  sourceType: "telegram" | "gmgn_kol" | "twitter";
   tokenAddress: string;
   calledAt: string;
   priceAtCall: number | null;
@@ -603,7 +603,7 @@ export default function KolPage() {
                       className="block px-4 py-2.5 border-b border-tt-border last:border-0 cursor-pointer hover:bg-tt-bg-panel"
                     >
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-tt-fg-dim">{c.sourceType === "gmgn_kol" ? "GMGN KOL" : "Telegram"}</span>
+                        <span className="text-tt-fg-dim">{c.sourceType === "gmgn_kol" ? "GMGN KOL" : c.sourceType === "twitter" ? "Twitter" : "Telegram"}</span>
                         <span className="text-tt-fg-faint text-[10px]">{new Date(c.calledAt).toLocaleTimeString()}</span>
                       </div>
                       <div className="text-tt-fg text-xs font-data">{truncate(c.tokenAddress)}</div>

@@ -11,14 +11,14 @@ import {
   geckoterminal,
   lunarcrush,
   gmgnApi,
+  twitter,
   detectLaunchpad,
   type HeliusConfig,
   type Launchpad,
   type SocialInsights,
   type GmgnEnrichment,
 } from "@ceronix/kira-shared";
-import { bullConnection } from "../lib/redis.js";
-import { redis } from "../lib/redis.js";
+import { bullConnection, redis } from "../lib/redis.js";
 import { supabase } from "../lib/supabase.js";
 import { reserveGeminiBudget, generateText } from "../lib/gemini.js";
 import { volumeQueue, volumeQueueEvents } from "../lib/queues.js";
@@ -78,6 +78,9 @@ export interface SocialSignals {
   kolMentions: number;
   totalTrackedChannels: number;
   trending: boolean;
+  /** null when not yet resolved (merged in after resolveSocialSignals, once symbol is known --
+   * see resolveXMentions). isFloor true means "count+", never render as an exact total. */
+  xMentions: { count: number; isFloor: boolean } | null;
 }
 
 interface DdJobData {
@@ -315,7 +318,27 @@ async function resolveSocialSignals(tokenAddress: string): Promise<SocialSignals
   const kolMentions = new Set((mentionsResult.data ?? []).map((r) => r.source_id)).size;
   const totalTrackedChannels = totalSourcesResult.count ?? 0;
 
-  return { kolMentions, totalTrackedChannels, trending };
+  return { kolMentions, totalTrackedChannels, trending, xMentions: null };
+}
+
+const X_MENTIONS_CACHE_TTL_SECONDS = 300;
+
+/** Resolved separately from resolveSocialSignals (which runs before market data, so symbol isn't
+ * known yet) -- called once the DD job has resolved a symbol, so the query can be
+ * "$SYMBOL OR {address}" rather than address-only. Cached 5 min in Redis (per-day key) since
+ * this burns a request against the 1-req/5s Twitter quota otherwise. */
+async function resolveXMentions(tokenAddress: string, symbol: string | null): Promise<{ count: number; isFloor: boolean }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = `twitter:mentions:${tokenAddress}:${today}`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  const query = symbol ? `$${symbol} OR ${tokenAddress}` : tokenAddress;
+  const result = await twitter.getTweetCount(query);
+
+  await redis.set(cacheKey, JSON.stringify(result), "EX", X_MENTIONS_CACHE_TTL_SECONDS);
+  return result;
 }
 
 const SOCIAL_TIMEOUT_MS = 500;
@@ -396,6 +419,10 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
   // Fired without awaiting yet, so it runs concurrently with the volume sub-job below rather
   // than adding to the critical path. Capped at 500ms via race, never blocks the card.
   const socialPromise = symbol ? getSocialInsightsWithTimeout(symbol) : Promise.resolve(null);
+  // Only resolvable here, not inside resolveSocialSignals above, since that runs before market
+  // data (and therefore symbol) is known. Cached, so most requests never touch the Twitter
+  // client's 1-req/5s limiter at all.
+  const xMentionsPromise = resolveXMentions(tokenAddress, symbol);
 
   // Pass the market data we already resolved straight to the volume sub-job, rather than
   // letting it re-derive fdv/liquidity from a kira_token_snapshots row that does not exist yet
@@ -418,10 +445,12 @@ async function processDdJob(job: Job<DdJobData>): Promise<DdCard> {
       return null;
     });
 
-  const [volume, social] = await Promise.all([volumePromise, socialPromise]) as [
+  const [volume, social, xMentions] = await Promise.all([volumePromise, socialPromise, xMentionsPromise]) as [
     VolumeOutput | null,
     SocialInsights | null,
+    { count: number; isFloor: boolean },
   ];
+  socialSignals.xMentions = xMentions;
 
   const rugScore = computeRugScore({
     mintAuthorityRevoked: report?.mintAuthorityRevoked ?? false,

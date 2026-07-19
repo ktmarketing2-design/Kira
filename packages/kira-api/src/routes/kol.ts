@@ -22,7 +22,7 @@ interface KolCallRow {
   price_4h: number | null;
   price_24h: number | null;
   price_7d: number | null;
-  source_type: "telegram" | "gmgn_kol";
+  source_type: "telegram" | "gmgn_kol" | "twitter";
 }
 
 function returnPct(entry: number | null, exit: number | null): number | null {
@@ -119,7 +119,7 @@ router.get("/calls", async (req, res) => {
   if (sourceId) query = query.eq("source_id", sourceId);
   if (dateFrom) query = query.gte("called_at", dateFrom);
   if (dateTo) query = query.lte("called_at", dateTo);
-  if (sourceType === "telegram" || sourceType === "gmgn_kol") query = query.eq("source_type", sourceType);
+  if (sourceType === "telegram" || sourceType === "gmgn_kol" || sourceType === "twitter") query = query.eq("source_type", sourceType);
 
   const { data, error } = await query;
   if (error) {

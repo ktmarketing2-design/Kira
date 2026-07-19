@@ -522,7 +522,7 @@ type DrillDownStep = "events" | "timeline" | "detail";
 
 interface MappedEvent {
   id: string;
-  kind: "cluster" | "kol" | "rug" | "lp";
+  kind: "cluster_buy" | "cluster_sell" | "kol" | "signal" | "info";
   label: string;
   caller: string;
   callerType: string;
@@ -626,9 +626,22 @@ function TokenSignalsTab({
       const idx = nearestIndex(a.timestamp);
       const p = candles[idx]?.close ?? currentPriceUsd ?? 0;
       const pct = p && currentPriceUsd ? ((currentPriceUsd - p) / p) * 100 : 0;
+      // Real kira_alerts.type values are cluster_buy/cluster_sell/new_token_cluster/
+      // signal_filter_match. The old check (a.kind.startsWith("cluster") ? "cluster" : "rug")
+      // mislabeled new_token_cluster as a rug flag, since "new_token_cluster" does not start with
+      // the substring "cluster" -- it's cluster_buy/cluster_sell that do. Kept as a real,
+      // distinguishable kind per alert type instead of collapsing everything non-cluster into
+      // a red "risk" bucket.
+      const kind = a.kind.startsWith("cluster_buy")
+        ? "cluster_buy"
+        : a.kind.startsWith("cluster_sell")
+          ? "cluster_sell"
+          : a.kind === "signal_filter_match"
+            ? "signal"
+            : "info";
       list.push({
         id: a.id,
-        kind: a.kind.startsWith("cluster") ? "cluster" : "rug",
+        kind,
         label: a.walletCount ? `${a.walletCount} wallets` : "alert",
         caller: "Kira Alert Engine",
         callerType: a.kind.replace(/_/g, " "),
@@ -642,7 +655,14 @@ function TokenSignalsTab({
         mcap: fmtUsd(fdvUsd * (p / (currentPriceUsd || 1))),
         liq: fmtUsd(liquidityUsd * (p / (currentPriceUsd || 1))),
         good: pct >= 0,
-        title: a.kind === "cluster_sell" ? "Cluster sell detected" : "Cluster buy detected",
+        title:
+          kind === "cluster_buy"
+            ? "Cluster buy detected"
+            : kind === "cluster_sell"
+              ? "Cluster sell detected"
+              : kind === "signal"
+                ? "Signal filter matched"
+                : a.kind.replace(/_/g, " "),
         subtitle: `${a.walletCount ?? 0} tracked wallets traded`,
         idx
       });
@@ -705,7 +725,16 @@ function TokenSignalsTab({
           const cx = x(e.idx);
           const cy = y(candles[e.idx]?.close ?? currentPriceUsd ?? 0);
           const isFocus = e.id === focusId;
-          const color = e.kind === "cluster" ? "#4AF626" : e.kind === "kol" ? "#E6A817" : "#FF3B3B";
+          const color =
+            e.kind === "cluster_buy"
+              ? "#4AF626"
+              : e.kind === "cluster_sell"
+                ? "#FF3B3B"
+                : e.kind === "kol"
+                  ? "#E6A817"
+                  : e.kind === "signal"
+                    ? "#7B7FD4"
+                    : "#8A8A85";
 
           return (
             <g key={e.id}>
@@ -785,9 +814,11 @@ function TokenSignalsTab({
             </div>
           ) : (
             eventsList.map((e) => {
-              let dotClass = "bg-tt-green";
+              let dotClass = "bg-tt-fg-faint";
+              if (e.kind === "cluster_buy") dotClass = "bg-tt-green";
+              if (e.kind === "cluster_sell") dotClass = "bg-tt-red";
               if (e.kind === "kol") dotClass = "bg-tt-amber";
-              if (e.kind === "rug" || e.kind === "lp") dotClass = "bg-tt-red";
+              if (e.kind === "signal") dotClass = "bg-tt-brand";
 
               return (
                 <div
@@ -818,7 +849,7 @@ function TokenSignalsTab({
             <div className="h-[220px] w-full flex items-center justify-center">
               {renderSvgChart(selectedEvent.id)}
             </div>
-            <div className="flex gap-4 mt-3 font-mono text-[10px] text-tt-fg-dim">
+            <div className="flex flex-wrap gap-4 mt-3 font-mono text-[10px] text-tt-fg-dim">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-tt-amber inline-block" /> KOL call
               </div>
@@ -826,7 +857,10 @@ function TokenSignalsTab({
                 <span className="w-1.5 h-1.5 rounded-full bg-tt-green inline-block" /> Cluster buy
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-tt-red inline-block" /> Risk flag / LP
+                <span className="w-1.5 h-1.5 rounded-full bg-tt-red inline-block" /> Cluster sell
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-tt-brand inline-block" /> Signal filter match
               </div>
             </div>
             <div className="text-[9px] text-tt-fg-faint mt-3 font-mono">Click a marker for full call details.</div>

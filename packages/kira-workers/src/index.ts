@@ -101,10 +101,22 @@ await smartWalletRefreshQueue.add(
   },
 );
 
+// Moved from every 5 min to every 10 min (Twitter integration): each cycle can now also check
+// up to ~10 KOL Twitter accounts at 1 req/5s (Twitter free-tier hard limit), a worst-case ~50s
+// Twitter pass on top of the GMGN call. A 5-minute schedule risked that pass still running when
+// the next cycle fired. Explicitly removes the old 5-minute repeatable schedule first --
+// otherwise it keeps firing forever alongside the new one, since BullMQ repeatable jobs are
+// registered by jobId+repeat options and changing the jobId does not retire the old one.
+const existingKolRepeats = await kolGmgnSyncQueue.getRepeatableJobs();
+for (const job of existingKolRepeats) {
+  if (job.id === "kol-gmgn-sync-5min") {
+    await kolGmgnSyncQueue.removeRepeatableByKey(job.key);
+  }
+}
 await kolGmgnSyncQueue.add(
   "sync",
   {},
-  { repeat: { every: 5 * 60 * 1000 }, jobId: "kol-gmgn-sync-5min" },
+  { repeat: { every: 10 * 60 * 1000 }, jobId: "kol-gmgn-sync-10min" },
 );
 
 await smartMoneyGmgnSyncQueue.add(
@@ -129,7 +141,7 @@ console.log("[kira-workers] kira-pnl-digest repeatable job registered for 06:00 
 console.log("[kira-workers] kira-wallet-performance repeatable job registered for 02:00 UTC daily");
 console.log("[kira-workers] kira-smart-money-digest repeatable job registered for 07:00 UTC daily");
 console.log("[kira-workers] kira-smart-wallet-refresh repeatable job registered for 03:00 UTC daily (plus one immediate run on startup)");
-console.log("[kira-workers] kira-kol-gmgn-sync repeatable job registered every 5 minutes");
+console.log("[kira-workers] kira-kol-gmgn-sync repeatable job registered every 10 minutes (GMGN + Twitter)");
 console.log("[kira-workers] kira-smartmoney-gmgn-sync repeatable job registered every 5 minutes");
 console.log("[kira-workers] kira-gmgn-scanner repeatable job registered every 60 seconds (trenches + smart-degen signals)");
 console.log("[kira-workers] kira-daily-brief repeatable job registered for 07:30 UTC daily");

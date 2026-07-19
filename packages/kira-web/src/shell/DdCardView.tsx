@@ -117,6 +117,19 @@ export default function DdCardView({ card }: { card: DdCard }) {
           </span>
         </div>
         <div className="flex justify-between text-xs py-1 text-tt-fg-dim">
+          <span>X mentions (24h)</span>
+          <span className="text-tt-fg">
+            {/* twitterapi.io has no total-count endpoint on this plan (verified live, 404) --
+                isFloor true means the search hit a full page and more exist beyond it, rendered
+                as "N+" rather than a fabricated exact total. */}
+            {card.socialSignals.xMentions == null
+              ? "—"
+              : card.socialSignals.xMentions.isFloor
+                ? `${card.socialSignals.xMentions.count}+`
+                : card.socialSignals.xMentions.count}
+          </span>
+        </div>
+        <div className="flex justify-between text-xs py-1 text-tt-fg-dim">
           <span>DexScreener trending</span>
           <span className="text-tt-fg">{card.socialSignals.trending ? "Yes" : "No"}</span>
         </div>

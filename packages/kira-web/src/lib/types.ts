@@ -96,6 +96,7 @@ export interface SocialSignals {
   kolMentions: number;
   totalTrackedChannels: number;
   trending: boolean;
+  xMentions: { count: number; isFloor: boolean } | null;
 }
 
 export type Launchpad =

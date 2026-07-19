@@ -13,6 +13,7 @@ interface SocialSignals {
   kolMentions: number;
   totalTrackedChannels: number;
   trending: boolean;
+  xMentions: { count: number; isFloor: boolean } | null;
 }
 
 interface DeepIntel {
@@ -57,14 +58,23 @@ function statusMark(ok: boolean): string {
  * (kira-workers/ddWorker.ts's `social` field) for when that subscription is active, it's just not
  * what gets displayed here.
  */
+function formatXMentions(x: { count: number; isFloor: boolean } | null): string {
+  // isFloor means the search API returned a full page (more exist beyond it) -- twitterapi.io has
+  // no total-count endpoint on this plan (verified live, 404), so an exact number here past that
+  // point would be fabricated precision. "20+" is the honest ceiling of what the API tells us.
+  if (!x) return "—";
+  return x.isFloor ? `${x.count}+` : `${x.count}`;
+}
+
 function formatSocialSignals(signals: SocialSignals): string {
-  if (signals.kolMentions === 0 && !signals.trending) {
+  if (signals.kolMentions === 0 && !signals.trending && !signals.xMentions?.count) {
     return escapeMarkdownV2("🌐 Social Signals: No activity detected in tracked channels");
   }
 
   return [
     "🌐 *Social Signals \\(24h\\)*",
     escapeMarkdownV2(`📡 KOL mentions: ${signals.kolMentions} of ${signals.totalTrackedChannels} tracked channels`),
+    escapeMarkdownV2(`X mentions (24h): ${formatXMentions(signals.xMentions)}`),
     escapeMarkdownV2(`🔥 DexScreener trending: ${signals.trending ? "Yes" : "No"}`),
   ].join("\n");
 }

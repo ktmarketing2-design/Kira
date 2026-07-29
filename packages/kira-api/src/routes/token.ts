@@ -480,7 +480,13 @@ router.get("/:address/full", async (req, res) => {
   ]);
 
   const infoRecord = (info ?? {}) as Record<string, any>;
-  const devAddress: string | undefined = infoRecord.dev?.creator_address;
+  // GMGN returns "" (empty string), not null/undefined, when a token's dev has fully exited --
+  // verified live against BONK ("creator_token_status": "creator_close", "creator_address": "").
+  // Normalized to undefined here so downstream `devAddress ?? null` (which only catches
+  // null/undefined, not "") and the `devAddress ? ... : null` history lookup both treat it
+  // consistently as "no address," matching what the frontend's dev.address check already expects.
+  const rawCreatorAddress: string | undefined = infoRecord.dev?.creator_address;
+  const devAddress: string | undefined = rawCreatorAddress ? rawCreatorAddress : undefined;
   const devHistory = devAddress ? await gmgnApi.getCreatorHistory(devAddress) : null;
 
   const taggedAddress = (list: unknown[]) => new Set((list as RawHolderOrTrader[]).map((h) => h.address));

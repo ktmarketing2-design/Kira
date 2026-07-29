@@ -185,7 +185,12 @@ export function TradersTab({ traders, onOpenProfile }: { traders: TokenFullHolde
 
 export function DevInfoTab({ dev }: { dev: TokenFullDev }) {
   if (!dev.address) {
-    return <div className="text-center text-tt-fg-dim text-sm py-8">No dev info available.</div>;
+    // GMGN returns creator_address as an empty string (not null/omitted) when a token's deployer
+    // has fully exited -- verified live against BONK, whose creator_token_status is
+    // "creator_close" -- so this is usually "we know the token had a dev, they're gone now," not
+    // "we have no idea." "Not identified" is honest either way without implying we simply never
+    // looked.
+    return <div className="text-center text-tt-fg-dim text-sm py-8">Developer wallet not identified.</div>;
   }
 
   const isSerialRugger =
@@ -307,7 +312,13 @@ function StatRow({ label, value, color }: { label: string; value: string; color?
 
 function fmtPct(v: number | null): string {
   if (v == null) return "—";
-  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+  // toFixed(2) rounds any change under 0.005% to "0.00%" -- indistinguishable from "no change" on
+  // very small-price tokens like BONK ($0.0000029), where a real, non-trivial price move can still
+  // be well under 1%. Use more decimals for genuinely tiny values instead of losing them to
+  // rounding, matching the mockup's intent for small-cap/meme-token precision.
+  const abs = Math.abs(v);
+  const decimals = abs < 0.01 && abs > 0 ? 4 : 2;
+  return `${v >= 0 ? "+" : ""}${v.toFixed(decimals)}%`;
 }
 
 export function StatsTab({

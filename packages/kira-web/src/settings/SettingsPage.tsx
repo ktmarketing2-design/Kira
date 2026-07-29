@@ -184,8 +184,10 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-xs text-tt-fg-dim mb-1">Min USD per buy</label>
+            <label htmlFor="min-usd-per-buy" className="block text-xs text-tt-fg-dim mb-1">Min USD per buy</label>
             <input
+              id="min-usd-per-buy"
+              name="minUsdPerBuy"
               type="number"
               value={minUsd}
               onChange={(e) => setMinUsd(Number(e.target.value))}

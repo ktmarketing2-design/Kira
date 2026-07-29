@@ -150,11 +150,13 @@ export default function DashboardPage() {
         </div>
         <div className="bg-tt-bg p-4">
           <div className="text-[10px] text-tt-fg-faint uppercase tracking-wide mb-2">Tokens DD'd</div>
-          <div className="font-display text-sm text-tt-fg-faint">Not tracked yet</div>
+          <div className="font-display text-xl text-tt-fg">0</div>
+          <div className="text-[10px] text-tt-fg-dim mt-1">search a token to start</div>
         </div>
         <div className="bg-tt-bg p-4">
           <div className="text-[10px] text-tt-fg-faint uppercase tracking-wide mb-2">Vol Authenticity Avg</div>
-          <div className="font-display text-sm text-tt-fg-faint">Not tracked yet</div>
+          <div className="font-display text-xl text-tt-fg-faint">—</div>
+          <div className="text-[10px] text-tt-fg-dim mt-1">run a DD to see scores</div>
         </div>
       </div>
 

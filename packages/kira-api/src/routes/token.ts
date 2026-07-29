@@ -519,6 +519,13 @@ router.get("/:address/full", async (req, res) => {
     };
   }
 
+  const currentPrice = numOrNull(infoRecord.price?.price);
+  const getChangePct = (histVal: number | string | null | undefined) => {
+    const hist = numOrNull(histVal);
+    if (!currentPrice || !hist) return null;
+    return ((currentPrice - hist) / hist) * 100;
+  };
+
   const devHistoryRecord = devHistory as Record<string, any> | null;
 
   const result = {
@@ -545,12 +552,12 @@ router.get("/:address/full", async (req, res) => {
       },
     },
     priceStats: {
-      current: numOrNull(infoRecord.price?.price),
-      change1m: numOrNull(infoRecord.price?.price_1m),
-      change5m: numOrNull(infoRecord.price?.price_5m),
-      change1h: numOrNull(infoRecord.price?.price_1h),
-      change6h: numOrNull(infoRecord.price?.price_6h),
-      change24h: numOrNull(infoRecord.price?.price_24h),
+      current: currentPrice,
+      change1m: getChangePct(infoRecord.price?.price_1m),
+      change5m: getChangePct(infoRecord.price?.price_5m),
+      change1h: getChangePct(infoRecord.price?.price_1h),
+      change6h: getChangePct(infoRecord.price?.price_6h),
+      change24h: getChangePct(infoRecord.price?.price_24h),
       buys1m: infoRecord.price?.buys_1m ?? null,
       buys5m: infoRecord.price?.buys_5m ?? null,
       buys1h: infoRecord.price?.buys_1h ?? null,

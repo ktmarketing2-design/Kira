@@ -1,4 +1,5 @@
-import { Send, Globe } from "lucide-react";
+import { useState } from "react";
+import { Send, Globe, Copy, Check } from "lucide-react";
 import type { DdCard } from "../lib/types.js";
 import type { TokenFullPriceStats } from "./TokenFullTabs.js";
 
@@ -34,6 +35,14 @@ export default function TokenHeader({
   card: DdCard | null;
   priceStats: TokenFullPriceStats | null;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="flex items-center gap-6 flex-wrap py-3 mb-3 border-b border-tt-border">
       {/* Fallback avatar or Logo */}
@@ -56,14 +65,22 @@ export default function TokenHeader({
                 {meta.launchpad}
               </span>
             )}
-            <span className="text-tt-fg-faint font-body text-[10px] flex items-center gap-1">
+            <span className="text-tt-fg-faint font-body text-[10px] flex items-center gap-1.5">
               {truncate(address)}
               <button
-                onClick={() => navigator.clipboard.writeText(address)}
-                className="text-tt-green hover:opacity-80"
+                onClick={handleCopy}
+                className="text-tt-brand hover:text-tt-brand/80 cursor-pointer flex items-center gap-1 bg-transparent border-0 p-0"
+                title="Copy contract address"
                 aria-label="Copy address"
               >
-                ⎘
+                {copied ? (
+                  <span className="text-[10px] text-tt-green font-sans font-medium flex items-center gap-0.5">
+                    <Check size={11} className="stroke-[2.5]" />
+                    Copied!
+                  </span>
+                ) : (
+                  <Copy size={11} className="text-tt-fg-faint hover:text-tt-fg transition-colors" />
+                )}
               </button>
             </span>
           </div>

@@ -8,27 +8,27 @@ export interface BuyBot {
 export const BUY_BOTS: BuyBot[] = [
   {
     label: "🤖 Trojan",
-    urlTemplate: "https://t.me/solana_trojanbot?start={address}",
+    urlTemplate: "https://t.me/solana_trojanbot?start=r-luckykhelly-{address}",
     type: "telegram",
-    graduatedOnly: false, // works for both pre and post graduation
+    graduatedOnly: false,
   },
   {
-    label: "🐂 BullX",
-    urlTemplate: "https://t.me/BullxNeoBot?start={address}",
+    label: "🌸 Bloom",
+    urlTemplate: "https://t.me/BloomSolana_bot?start=ref_BX02QG5C1T_ca_{address}",
     type: "telegram",
     graduatedOnly: false,
   },
   {
     label: "🎯 Maestro",
-    urlTemplate: "https://t.me/MaestroSniper_bot?start={address}",
+    urlTemplate: "https://t.me/maestro?start={address}-luckykhelly",
     type: "telegram",
-    graduatedOnly: false, // supports 14 chains, Solana + pump.fun included
+    graduatedOnly: false,
   },
   {
     label: "🐶 BONKbot",
-    urlTemplate: "https://t.me/bonkbot_bot?start={address}",
+    urlTemplate: "https://t.me/bonkbot_bot?start=ref_nuqla_ca_{address}",
     type: "telegram",
-    graduatedOnly: false, // best for beginners, fast clean UI
+    graduatedOnly: false,
   },
   {
     label: "⚡ Jupiter ↗",
